@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Telegram Auto Sender</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            surface: "#f7f7f8",
+            panel: "#ffffff",
+            border: "#e5e7eb",
+            accent: "#111827",
+            muted: "#6b7280"
+          },
+          fontFamily: {
+            sans: ["Geist", "Inter", "system-ui", "sans-serif"]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    @font-face {
+      font-family: "Geist";
+      src: url("https://assets.vercel.com/raw/upload/v1676297961/fonts/geist/Geist-Variable.woff2") format("woff2");
+      font-weight: 100 900;
+      font-display: swap;
+    }
+    body {
+      font-family: "Geist", "Inter", system-ui, sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-surface text-slate-900 min-h-screen relative overflow-x-hidden">
+  <div class="pointer-events-none absolute inset-0 opacity-50">
+    <div class="absolute -left-10 top-10 h-40 w-40 rounded-full bg-black/5 blur-3xl"></div>
+    <div class="absolute -right-16 top-32 h-48 w-48 rounded-full bg-black/10 blur-3xl"></div>
+  </div>
+
+  <div class="relative max-w-6xl mx-auto p-4 md:p-8 lg:p-10 space-y-6">
+    <header class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div class="space-y-2">
+        <div class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs uppercase tracking-[0.2em] text-muted bg-panel shadow-sm">
+          Personal tool
+        </div>
+        <div>
+          <h1 class="text-2xl md:text-3xl lg:text-4xl font-semibold text-accent">Telegram Auto Sender</h1>
+          <p class="text-sm md:text-base text-muted">Send once or loop messages with your own API keys.</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-muted">
+        <span id="userBadge" class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-panel border border-border shadow-md">
+          <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="text-accent">Ready</span>
+        </span>
+        <button id="authActionButton"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent text-white font-semibold shadow-md shadow-black/10 hover:bg-accent/90 transition focus:outline-none focus:ring-2 focus:ring-accent/30">
+          Login / Get session
+        </button>
+      </div>
+    </header>
+
+    <main class="grid gap-4 lg:gap-6 lg:grid-cols-[1.6fr_1fr] items-start">
+      <section class="bg-panel border border-border rounded-2xl shadow-xl shadow-black/10 p-6 md:p-8 space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.2em] text-muted">Credentials</p>
+            <p class="text-sm text-muted">Pre-filled with your personal API keys.</p>
+          </div>
+          <span class="text-xs text-muted">Secure local use</span>
+        </div>
+
+        <form id="sendForm" class="space-y-6">
+          <div class="grid md:grid-cols-2 gap-4">
+            <label class="space-y-2 text-sm">
+              <span class="text-muted">API ID</span>
+              <input type="number" name="api_id" value="23673698" required
+              class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+            </label>
+            <label class="space-y-2 text-sm">
+              <span class="text-muted">API Hash</span>
+              <input type="text" name="api_hash" value="fb4d9e08cfa6563fec231658c18fe189" required
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+            </label>
+          </div>
+
+          <div class="grid lg:grid-cols-2 gap-4">
+            <label class="space-y-2 text-sm lg:col-span-2">
+              <span class="text-muted">Session String (optional)</span>
+              <textarea name="session_string" rows="3" placeholder="Paste Telethon session string to reuse login"
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30"></textarea>
+            </label>
+
+            <label class="space-y-2 text-sm">
+              <span class="text-muted">Chat ID or Username</span>
+              <input type="text" name="chat_id" required placeholder="-100123... or @channel"
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+            </label>
+            <label class="space-y-2 text-sm">
+              <span class="text-muted">Interval (seconds)</span>
+              <input type="number" name="interval_seconds" min="1" step="1" required value="60"
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+            </label>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="space-y-2 text-sm">
+              <span class="text-muted">Send type</span>
+              <div class="relative">
+                <input type="hidden" id="contentType" name="content_type" value="text">
+                <button type="button" id="contentTypeButton"
+                  class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-left text-accent font-medium focus:outline-none focus:ring-2 focus:ring-accent/30 flex items-center justify-between">
+                  <span id="contentTypeLabel">Text only</span>
+                  <svg class="h-4 w-4 text-muted" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.086l3.71-3.856a.75.75 0 111.08 1.04l-4.25 4.417a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                  </svg>
+                </button>
+                <div id="contentTypeMenu"
+                  class="absolute z-10 mt-2 w-full rounded-xl border border-border bg-white shadow-lg shadow-black/10 hidden">
+                  <button type="button" data-value="text"
+                    class="w-full px-4 py-3 text-left text-accent hover:bg-surface/80 focus:outline-none focus:bg-surface/80 rounded-t-xl">
+                    Text only
+                  </button>
+                  <button type="button" data-value="image"
+                    class="w-full px-4 py-3 text-left text-accent hover:bg-surface/80 focus:outline-none focus:bg-surface/80 rounded-b-xl">
+                    Image with caption
+                  </button>
+                </div>
+              </div>
+            </div>
+            <label id="imageSourceField" class="space-y-2 text-sm hidden">
+              <span class="text-muted">Image input</span>
+              <select id="imageSource" name="image_source"
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                <option value="url" selected>Use image URL</option>
+                <option value="upload">Upload image</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <label id="imageUrlField" class="space-y-2 text-sm hidden">
+              <span class="text-muted">Image URL</span>
+              <input type="text" id="imageUrl" name="image_url" placeholder="https://example.com/image.jpg"
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+            </label>
+            <label id="imageFileField" class="space-y-2 text-sm hidden">
+              <span class="text-muted">Upload image</span>
+              <input type="file" id="imageFile" accept="image/*"
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+            </label>
+          </div>
+
+          <label class="space-y-2 text-sm block">
+            <span class="text-muted">Message (caption if sending an image)</span>
+            <textarea name="message" rows="3" required placeholder="Type the text to send"
+              class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30"></textarea>
+          </label>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+            <button type="submit"
+              class="inline-flex items-center justify-center gap-2 rounded-xl bg-accent text-white px-4 py-3 font-semibold hover:bg-accent/90 transition focus:outline-none focus:ring-2 focus:ring-accent/40">
+              Start Auto Send
+            </button>
+            <button type="button" id="sendOnceButton"
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 font-semibold text-accent hover:border-accent/60 transition focus:outline-none focus:ring-2 focus:ring-accent/30">
+              Send Once
+            </button>
+            <button type="button" id="stopButton"
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 font-semibold text-muted hover:text-accent hover:border-accent/60 transition focus:outline-none focus:ring-2 focus:ring-accent/20">
+              Stop
+            </button>
+            <button type="button" id="saveButton"
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 font-semibold text-accent hover:border-accent/60 transition focus:outline-none focus:ring-2 focus:ring-accent/30">
+              Save Inputs
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <aside class="space-y-4 lg:space-y-5">
+        <div class="bg-panel border border-border rounded-2xl p-6 space-y-4 shadow-xl shadow-black/10">
+          <div class="flex items-center justify-between">
+            <p class="text-sm text-muted">Status</p>
+            <button id="refreshStatus" type="button"
+              class="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-accent hover:border-accent/60 transition focus:outline-none focus:ring-2 focus:ring-accent/20">
+              Refresh
+            </button>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="statusBadge"
+              class="inline-flex items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-sm font-semibold text-accent">
+              Idle
+            </span>
+            <span id="statusMode" class="text-xs uppercase tracking-wide text-muted"></span>
+          </div>
+          <dl class="grid grid-cols-2 gap-3 text-sm text-muted">
+            <div class="space-y-1">
+              <dt>Started</dt>
+              <dd id="statusStarted" class="text-accent">--</dd>
+            </div>
+            <div class="space-y-1">
+              <dt>Last sent</dt>
+              <dd id="statusLastSent" class="text-accent">--</dd>
+            </div>
+            <div class="space-y-1">
+              <dt>Sent count</dt>
+              <dd id="statusSentCount" class="text-accent">0</dd>
+            </div>
+            <div class="space-y-1">
+              <dt>Interval (s)</dt>
+              <dd id="statusInterval" class="text-accent">--</dd>
+            </div>
+            <div class="space-y-1 col-span-2">
+              <dt>Target</dt>
+              <dd id="statusTarget" class="text-accent break-all">--</dd>
+            </div>
+            <div class="space-y-1 col-span-2">
+              <dt>Content type</dt>
+              <dd id="statusContentType" class="text-accent break-all">--</dd>
+            </div>
+          </dl>
+          <p id="status" class="text-sm text-accent">Idle</p>
+        </div>
+
+        <div class="bg-panel border border-border rounded-2xl p-6 space-y-3 text-sm text-muted shadow-xl shadow-black/10">
+          <p class="font-semibold text-accent">Usage</p>
+          <ul class="list-disc list-inside space-y-1">
+            <li>Using your personal API ID/Hash (pre-filled above).</li>
+            <li>For channels/groups use full <code class="text-accent">-100</code> chat id or a username.</li>
+            <li>Session string reuses login; leave empty to use the saved session file.</li>
+            <li>"Start Auto Send" loops, "Send Once" fires immediately, "Stop" halts the loop.</li>
+            <li>Select "Image with caption" to upload a photo or use an image URL; the message field becomes the caption.</li>
+          </ul>
+        </div>
+      </aside>
+  </main>
+
+  <!-- Auth Modal -->
+  <div id="authOverlay" class="fixed inset-0 bg-black/30 backdrop-blur-sm hidden transition-opacity duration-200"></div>
+  <div id="authModal" class="fixed inset-0 hidden items-center justify-center px-4">
+    <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl shadow-black/20 border border-border p-6 space-y-4 animate-[fadeIn_0.2s_ease]">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-[0.2em] text-muted">Session helper</p>
+          <h2 class="text-lg font-semibold text-accent">Login to get session string</h2>
+        </div>
+        <button type="button" id="closeAuthModal"
+          class="rounded-full p-2 text-muted hover:text-accent hover:bg-surface focus:outline-none focus:ring-2 focus:ring-accent/20">
+          ✕
+        </button>
+      </div>
+      <p class="text-sm text-muted">Use your phone number once to authorize. We return a session string you can paste back into the form.</p>
+      <label class="space-y-2 text-sm block">
+        <span class="text-muted">Phone (include country code)</span>
+        <input type="tel" id="authPhone"
+          class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+      </label>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <label class="space-y-2 text-sm">
+          <span class="text-muted">Code</span>
+          <input type="text" id="authCode" maxlength="8"
+            class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+        </label>
+        <label class="space-y-2 text-sm">
+          <span class="text-muted">2FA Password (if enabled)</span>
+          <input type="password" id="authPassword"
+            class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+        </label>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <button type="button" id="authSendBtn"
+          class="inline-flex items-center gap-2 rounded-xl bg-accent text-white px-4 py-2.5 font-semibold hover:bg-accent/90 transition focus:outline-none focus:ring-2 focus:ring-accent/30">
+          Send code
+        </button>
+        <button type="button" id="authVerifyBtn"
+          class="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 font-semibold text-accent hover:border-accent/60 transition focus:outline-none focus:ring-2 focus:ring-accent/20">
+          Verify & save session
+        </button>
+      </div>
+      <p id="authStatus" class="text-sm text-accent"></p>
+      <div class="flex items-center gap-2 text-xs text-muted">
+        <span class="h-2 w-2 rounded-full bg-accent/50 animate-ping"></span>
+        <span>Keep this tab open while you enter the code.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <script>
+    const form = document.getElementById("sendForm");
+    const statusEl = document.getElementById("status");
+    const stopButton = document.getElementById("stopButton");
+    const sendOnceButton = document.getElementById("sendOnceButton");
+    const refreshStatus = document.getElementById("refreshStatus");
+    const saveButton = document.getElementById("saveButton");
+    const authActionButton = document.getElementById("authActionButton");
+    const contentTypeInput = document.getElementById("contentType");
+    const contentTypeButton = document.getElementById("contentTypeButton");
+    const contentTypeMenu = document.getElementById("contentTypeMenu");
+    const contentTypeLabel = document.getElementById("contentTypeLabel");
+    const contentTypeOptions = Array.from(contentTypeMenu.querySelectorAll("[data-value]"));
+    const imageSourceField = document.getElementById("imageSourceField");
+    const imageSourceSelect = document.getElementById("imageSource");
+    const imageUrlField = document.getElementById("imageUrlField");
+    const imageFileField = document.getElementById("imageFileField");
+    const imageUrlInput = document.getElementById("imageUrl");
+    const imageFileInput = document.getElementById("imageFile");
+    const messageField = form.elements["message"];
+    const statusBadge = document.getElementById("statusBadge");
+    const statusMode = document.getElementById("statusMode");
+    const statusStarted = document.getElementById("statusStarted");
+    const statusLastSent = document.getElementById("statusLastSent");
+    const statusSentCount = document.getElementById("statusSentCount");
+    const statusInterval = document.getElementById("statusInterval");
+    const statusTarget = document.getElementById("statusTarget");
+    const statusContentType = document.getElementById("statusContentType");
+    const authModal = document.getElementById("authModal");
+    const authOverlay = document.getElementById("authOverlay");
+    const closeAuthModal = document.getElementById("closeAuthModal");
+    const authPhone = document.getElementById("authPhone");
+    const authCode = document.getElementById("authCode");
+    const authPassword = document.getElementById("authPassword");
+    const authSendBtn = document.getElementById("authSendBtn");
+    const authVerifyBtn = document.getElementById("authVerifyBtn");
+    const authStatus = document.getElementById("authStatus");
+    const userBadge = document.getElementById("userBadge");
+
+    function setStatus(text, tone = "muted") {
+      const toneClasses = {
+        success: "text-green-600",
+        error: "text-red-600",
+        muted: "text-accent"
+      };
+      statusEl.textContent = text;
+      statusEl.className = "text-base font-medium " + (toneClasses[tone] || toneClasses.muted);
+    }
+
+    function setAuthStatus(text, tone = "muted") {
+      const toneClasses = {
+        success: "text-green-600",
+        error: "text-red-600",
+        muted: "text-accent"
+      };
+      authStatus.textContent = text;
+      authStatus.className = "text-sm font-medium " + (toneClasses[tone] || toneClasses.muted);
+    }
+
+    function collectFormValues() {
+      const formData = new FormData(form);
+      const data = {};
+      formData.forEach(function (value, key) {
+        data[key] = typeof value === "string" ? value.trim() : value;
+      });
+      data.api_id = Number(data.api_id);
+      data.interval_seconds = Number(data.interval_seconds);
+      data.content_type = data.content_type || "text";
+      data.image_source = data.image_source || "url";
+      data.image_url = data.image_url || "";
+      data.message = data.message || "";
+      return data;
+    }
+
+    function readFileAsDataURL(file) {
+      return new Promise(function (resolve, reject) {
+        const reader = new FileReader();
+        reader.onload = function () { resolve(reader.result); };
+        reader.onerror = function () { reject(new Error("Could not read file")); };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function buildPayload(baseValues) {
+      const base = baseValues || collectFormValues();
+      const payload = {
+        ...base,
+        image_base64: "",
+        image_name: "",
+      };
+
+      if (base.content_type === "image") {
+        const usingUpload = (base.image_source || "url") === "upload";
+        if (usingUpload) {
+          const file = imageFileInput.files[0];
+          if (!file) {
+            setStatus("Please choose an image file to upload.", "error");
+            return null;
+          }
+          payload.image_name = file.name;
+          payload.image_base64 = await readFileAsDataURL(file);
+          payload.image_url = "";
+        } else {
+          if (!base.image_url) {
+            setStatus("Add an image URL to send.", "error");
+            return null;
+          }
+          payload.image_base64 = "";
+        }
+      } else {
+        payload.image_url = "";
+      }
+
+      return payload;
+    }
+
+    const STORAGE_KEY = "autoSenderForm";
+    function saveForm(data) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        setStatus("Inputs saved", "success");
+      } catch (err) {
+        setStatus("Could not save inputs", "error");
+      }
+    }
+
+    function loadForm() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        Object.keys(saved).forEach(function (key) {
+          if (form.elements[key] !== undefined && saved[key] !== undefined) {
+            form.elements[key].value = saved[key];
+          }
+        });
+      } catch (err) {
+        // ignore load errors
+      }
+    }
+
+    function updateContentTypeLabel() {
+      contentTypeLabel.textContent =
+        contentTypeInput.value === "image" ? "Image with caption" : "Text only";
+    }
+
+    function syncContentFields() {
+      updateContentTypeLabel();
+      const isImage = contentTypeInput.value === "image";
+      imageSourceField.classList.toggle("hidden", !isImage);
+      const usingUpload = imageSourceSelect.value === "upload";
+      imageUrlField.classList.toggle("hidden", !isImage || usingUpload);
+      imageFileField.classList.toggle("hidden", !isImage || !usingUpload);
+      imageUrlInput.required = isImage && !usingUpload;
+      imageFileInput.required = isImage && usingUpload;
+      messageField.required = !isImage;
+      messageField.placeholder = isImage
+        ? "Optional caption shown with the image"
+        : "Type the text to send";
+    }
+
+    function validateContent(data) {
+      if (data.content_type === "image") {
+        const usingUpload = (data.image_source || "url") === "upload";
+        if (usingUpload && imageFileInput.files.length === 0) {
+          setStatus("Choose an image file to upload.", "error");
+          return false;
+        }
+        if (!usingUpload && !data.image_url) {
+          setStatus("Add an image URL when sending an image.", "error");
+          return false;
+        }
+      }
+      if (data.content_type === "text" && !data.message) {
+        setStatus("Message cannot be empty.", "error");
+        return false;
+      }
+      return true;
+    }
+
+    function openContentMenu() {
+      contentTypeMenu.classList.remove("hidden");
+    }
+
+    function closeContentMenu() {
+      contentTypeMenu.classList.add("hidden");
+    }
+
+    function setContentType(value) {
+      contentTypeInput.value = value;
+      syncContentFields();
+      closeContentMenu();
+    }
+
+    function openAuthModalDialog() {
+      authOverlay.classList.remove("hidden");
+      authModal.classList.remove("hidden");
+      authPhone.value = form.elements["phone"] ? form.elements["phone"].value : authPhone.value;
+      setAuthStatus("Enter your phone number to get a code.");
+    }
+
+    function closeAuthModalDialog() {
+      authOverlay.classList.add("hidden");
+      authModal.classList.add("hidden");
+    }
+
+    function postJSON(url, data, fallbackMessage) {
+      return fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      })
+        .then(async function (res) {
+          const contentType = res.headers.get("content-type") || "";
+          let payload;
+          if (contentType.includes("application/json")) {
+            payload = await res.json();
+          } else {
+            payload = { detail: await res.text() };
+          }
+          if (!res.ok) {
+            throw new Error(payload.detail || res.statusText);
+          }
+          setStatus(payload.detail || fallbackMessage, "success");
+          return payload;
+        })
+        .catch(function (err) {
+          setStatus("Error: " + err.message, "error");
+          throw err;
+        });
+    }
+
+    
+    function fmtTs(ts) {
+      if (!ts) return "--";
+      const d = new Date(ts * 1000);
+      return d.toLocaleString();
+    }
+
+    function renderStatus(data) {
+      const active = Boolean(data.active);
+      statusBadge.textContent = active ? "Active" : "Idle";
+      statusBadge.className =
+        "inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold " +
+        (active ? "bg-green-400/20 text-green-100" : "bg-white/10 text-white");
+      statusMode.textContent = data.mode ? data.mode : "";
+      statusStarted.textContent = fmtTs(data.started_at);
+      statusLastSent.textContent = fmtTs(data.last_sent_at);
+      statusSentCount.textContent = data.sent_count ?? 0;
+      statusInterval.textContent = data.interval_seconds ?? "--";
+      statusTarget.textContent = data.chat_id ?? "--";
+      statusContentType.textContent = data.content_type || "--";
+      if (data.user && data.user.name) {
+        userBadge.textContent = "Welcome, " + data.user.name;
+        userBadge.className =
+          "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm";
+        authActionButton.textContent = "Sign out";
+      } else {
+        userBadge.textContent = "Ready";
+        userBadge.className =
+          "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-panel border border-border shadow-md";
+        authActionButton.textContent = "Login / Get session";
+      }
+    }
+
+    function fetchStatus() {
+      fetch("/status")
+        .then(function (res) { return res.json(); })
+        .then(function (data) { renderStatus(data); })
+        .catch(function () { /* ignore */ });
+    }
+
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      if (!form.reportValidity()) {
+        return;
+      }
+      const base = collectFormValues();
+      if (!validateContent(base)) return;
+      const data = await buildPayload(base);
+      if (!data) return;
+      setStatus("Starting loop...");
+      postJSON("/start", data, "Started").then(fetchStatus).catch(function () {});
+    });
+
+    stopButton.addEventListener("click", function () {
+      setStatus("Stopping...");
+      postJSON("/stop", {}, "Stopped").then(fetchStatus).catch(function () {});
+    });
+
+    sendOnceButton.addEventListener("click", async function () {
+      if (!form.reportValidity()) {
+        return;
+      }
+      const base = collectFormValues();
+      if (!validateContent(base)) return;
+      const data = await buildPayload(base);
+      if (!data) return;
+      setStatus("Sending once...");
+      postJSON("/send-once", data, "Message sent").then(fetchStatus).catch(function () {});
+    });
+
+    saveButton.addEventListener("click", function () {
+      const data = collectFormValues();
+      saveForm(data);
+    });
+
+    refreshStatus.addEventListener("click", fetchStatus);
+    contentTypeButton.addEventListener("click", function (e) {
+      e.stopPropagation();
+      const isHidden = contentTypeMenu.classList.contains("hidden");
+      if (isHidden) {
+        openContentMenu();
+      } else {
+        closeContentMenu();
+      }
+    });
+    contentTypeOptions.forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        setContentType(btn.dataset.value);
+      });
+    });
+    document.addEventListener("click", function (e) {
+      if (!contentTypeMenu.contains(e.target) && !contentTypeButton.contains(e.target)) {
+        closeContentMenu();
+      }
+    });
+    authActionButton.addEventListener("click", function () {
+      if (authActionButton.textContent.includes("Sign out")) {
+        postJSON("/auth/logout", {}, "Signed out").then(function () {
+          fetchStatus();
+        });
+      } else {
+        openAuthModalDialog();
+      }
+    });
+    authOverlay.addEventListener("click", closeAuthModalDialog);
+    closeAuthModal.addEventListener("click", closeAuthModalDialog);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeAuthModalDialog();
+    });
+    authSendBtn.addEventListener("click", function () {
+      const phone = authPhone.value.trim();
+      if (!phone) {
+        setAuthStatus("Phone is required.", "error");
+        return;
+      }
+      const payload = {
+        api_id: Number(form.elements["api_id"].value),
+        api_hash: form.elements["api_hash"].value,
+        phone: phone
+      };
+      setAuthStatus("Sending code...", "muted");
+      authSendBtn.disabled = true;
+      postJSON("/auth/send-code", payload, "Code sent").then(function (res) {
+        setAuthStatus(res.detail || "Code sent. Check Telegram.", "success");
+      }).catch(function (err) {
+        setAuthStatus(err.message || "Failed to send code.", "error");
+      }).finally(function () {
+        authSendBtn.disabled = false;
+        setTimeout(function () { setAuthStatus(""); }, 4000);
+      });
+    });
+    authVerifyBtn.addEventListener("click", function () {
+      const phone = authPhone.value.trim();
+      const code = authCode.value.trim();
+      if (!phone || !code) {
+        setAuthStatus("Phone and code are required.", "error");
+        return;
+      }
+      const payload = {
+        api_id: Number(form.elements["api_id"].value),
+        api_hash: form.elements["api_hash"].value,
+        phone: phone,
+        code: code,
+        password: authPassword.value
+      };
+      setAuthStatus("Verifying...", "muted");
+      authVerifyBtn.disabled = true;
+      postJSON("/auth/verify", payload, "Verified").then(function (res) {
+        if (res.session_string) {
+          form.elements["session_string"].value = res.session_string;
+          const updated = collectFormValues();
+          saveForm(updated);
+        }
+        setAuthStatus(res.detail || "Authorized. Session saved above.", "success");
+      }).catch(function (err) {
+        setAuthStatus(err.message || "Verification failed.", "error");
+      }).finally(function () {
+        authVerifyBtn.disabled = false;
+      });
+    });
+    imageSourceSelect.addEventListener("change", syncContentFields);
+    loadForm();
+    syncContentFields();
+    fetchStatus();
+    setInterval(fetchStatus, 5000);
+
+  </script>
+</body>
+</html>

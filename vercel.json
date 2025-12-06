@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "userbot.py", "use": "@vercel/python" },
+    { "src": "index.html", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/(start|stop|send-once|status)", "dest": "/userbot.py" },
+    { "src": "/favicon.ico", "dest": "/index.html" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
