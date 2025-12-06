@@ -400,7 +400,7 @@ def run_sender(
 
     session = StringSession(session_string)
 
-    with session_lock, client_connection(session, api_id, api_hash) as client:
+    with client_connection(session, api_id, api_hash) as client:
         try:
             ensure_authorized(client)
         except AuthKeyUnregisteredError:
@@ -648,9 +648,6 @@ def start():
 def send_once():
     data = request.get_json()
 
-    if status_state.get("active"):
-        return jsonify({"detail": "Stop the auto sender before using send-once."}), 409
-
     api_id = int(data["api_id"])
     api_hash = data["api_hash"]
     session_string = obtain_session_string(data.get("session_string"))
@@ -690,7 +687,7 @@ def send_once():
 
     user_info = get_current_user()
     run_id = str(uuid.uuid4())
-    with session_lock, client_connection(session, api_id, api_hash) as client:
+    with client_connection(session, api_id, api_hash) as client:
         try:
             ensure_authorized(client)
         except AuthKeyUnregisteredError:
