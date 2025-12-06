@@ -338,6 +338,62 @@
     const authVerifyBtn = document.getElementById("authVerifyBtn");
     const authStatus = document.getElementById("authStatus");
     const userBadge = document.getElementById("userBadge");
+    const LOCAL_AUTH_KEY = "telegram-auto-sender:auth";
+    let localAuth = { session_string: "", user: null };
+
+    function persistLocalAuth(sessionString, userInfo) {
+      localAuth = {
+        session_string: sessionString || "",
+        user: userInfo !== undefined ? userInfo : localAuth.user,
+      };
+      try {
+        localStorage.setItem(LOCAL_AUTH_KEY, JSON.stringify(localAuth));
+      } catch (err) {
+        /* ignore storage errors */
+      }
+      form.elements["session_string"].value = localAuth.session_string;
+    }
+
+    function loadLocalAuth() {
+      try {
+        const raw = localStorage.getItem(LOCAL_AUTH_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          localAuth.session_string = parsed.session_string || "";
+          localAuth.user = parsed.user || null;
+        }
+      } catch (err) {
+        localAuth = { session_string: "", user: null };
+      }
+      form.elements["session_string"].value = localAuth.session_string;
+      updateUserBadge();
+    }
+
+    function clearLocalAuth() {
+      localAuth = { session_string: "", user: null };
+      try {
+        localStorage.removeItem(LOCAL_AUTH_KEY);
+      } catch (err) {
+        /* ignore storage errors */
+      }
+      form.elements["session_string"].value = "";
+      updateUserBadge();
+    }
+
+    function updateUserBadge() {
+      const user = localAuth.user;
+      if (user && user.name) {
+        userBadge.textContent = "Welcome, " + user.name;
+        userBadge.className =
+          "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm";
+        authActionButton.textContent = "Sign out";
+      } else {
+        userBadge.textContent = "Ready";
+        userBadge.className =
+          "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-panel border border-border shadow-md";
+        authActionButton.textContent = "Login / Get session";
+      }
+    }
 
     function setStatus(text, tone = "muted") {
       const toneClasses = {
@@ -417,11 +473,13 @@
     }
 
     async function saveSettings(data) {
+      const payload = { ...data };
+      delete payload.session_string;
       try {
         await fetch("/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
+          body: JSON.stringify(payload),
         });
         setStatus("Inputs saved", "success");
       } catch (err) {
@@ -435,6 +493,7 @@
         if (!res.ok) return;
         const data = await res.json();
         Object.keys(data).forEach(function (key) {
+          if (key === "session_string") return;
           if (form.elements[key] !== undefined && data[key] !== undefined) {
             form.elements[key].value = data[key];
           }
@@ -568,7 +627,9 @@
       statusBadge.textContent = active ? "Active" : "Idle";
       statusBadge.className =
         "inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold " +
-        (active ? "bg-green-400/20 text-green-100" : "bg-white/10 text-white");
+        (active
+          ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+          : "bg-surface text-accent border border-border");
       statusMode.textContent = data.mode ? data.mode : "";
       statusStarted.textContent = fmtTs(data.started_at);
       statusLastSent.textContent = fmtTs(data.last_sent_at);
@@ -577,17 +638,7 @@
       statusTarget.textContent = data.chat_id ?? "--";
       statusContentType.textContent = data.content_type || "--";
       lastStatus = data;
-      if (data.user && data.user.name) {
-        userBadge.textContent = "Welcome, " + data.user.name;
-        userBadge.className =
-          "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm";
-        authActionButton.textContent = "Sign out";
-      } else {
-        userBadge.textContent = "Ready";
-        userBadge.className =
-          "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-panel border border-border shadow-md";
-        authActionButton.textContent = "Login / Get session";
-      }
+      updateUserBadge();
     }
 
     function fetchStatus() {
@@ -603,9 +654,14 @@
         return;
       }
       const base = collectFormValues();
+      if (!base.session_string) {
+        setStatus("Session string is required. Login first to start sending.", "error");
+        return;
+      }
       if (!validateContent(base)) return;
       const data = await buildPayload(base);
       if (!data) return;
+      persistLocalAuth(base.session_string);
       setStatus("Starting loop...");
       postJSON("/start", data, "Started").then(fetchStatus).catch(function () {});
     });
@@ -620,15 +676,22 @@
         return;
       }
       const base = collectFormValues();
+      if (!base.session_string) {
+        setStatus("Session string is required. Login first to send a message.", "error");
+        return;
+      }
       if (!validateContent(base)) return;
       const data = await buildPayload(base);
       if (!data) return;
+      persistLocalAuth(base.session_string);
       setStatus("Sending once...");
       postJSON("/send-once", data, "Message sent").then(fetchStatus).catch(function () {});
     });
 
     saveButton.addEventListener("click", function () {
       const data = collectFormValues();
+      persistLocalAuth(data.session_string);
+      updateUserBadge();
       saveSettings(data);
     });
 
@@ -636,6 +699,7 @@
     authActionButton.addEventListener("click", function () {
       if (authActionButton.textContent.includes("Sign out")) {
         postJSON("/auth/logout", {}, "Signed out").then(function () {
+          clearLocalAuth();
           fetchStatus();
         });
       } else {
@@ -707,10 +771,13 @@
       authVerifyBtn.disabled = true;
       postJSON("/auth/verify", payload, "Verified").then(function (res) {
         if (res.session_string) {
-          form.elements["session_string"].value = res.session_string;
+          persistLocalAuth(res.session_string, res.user || null);
           const updated = collectFormValues();
           saveSettings(updated);
+        } else {
+          persistLocalAuth("", res.user || null);
         }
+        updateUserBadge();
         setAuthStatus(res.detail || "Authorized. Session saved above.", "success");
       }).catch(function (err) {
         setAuthStatus(err.message || "Verification failed.", "error");
@@ -719,6 +786,7 @@
       });
     });
     imageSourceSelect.addEventListener("change", syncContentFields);
+    loadLocalAuth();
     loadSettings();
     syncContentFields();
     fetchStatus();

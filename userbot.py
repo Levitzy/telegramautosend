@@ -76,8 +76,11 @@ def save_settings(data: Dict[str, Any]):
     db, _ = get_mongo()
     if db is None:
         return
+    sanitized = {k: v for k, v in data.items() if k != "session_string"}
     try:
-        db.settings.update_one({"_id": "form"}, {"$set": {"data": data, "updated_at": time.time()}}, upsert=True)
+        db.settings.update_one(
+            {"_id": "form"}, {"$set": {"data": sanitized, "updated_at": time.time()}}, upsert=True
+        )
     except mongo_errors.PyMongoError:
         pass
 
@@ -88,7 +91,9 @@ def load_settings() -> Dict[str, Any]:
         return {}
     try:
         doc = db.settings.find_one({"_id": "form"}) or {}
-        return doc.get("data") or {}
+        data = doc.get("data") or {}
+        data.pop("session_string", None)
+        return data
     except mongo_errors.PyMongoError:
         return {}
 
@@ -250,8 +255,11 @@ def run_sender(
     global stop_flag
     ensure_event_loop()
     if not session_string:
-        session_string = load_saved_session()
-    session = StringSession(session_string) if session_string else "telegram_session"
+        with status_lock:
+            status_state.update({"active": False, "mode": "unauthorized", "next_send_at": None})
+        return
+
+    session = StringSession(session_string)
 
     with session_lock, client_connection(session, api_id, api_hash) as client:
         try:
@@ -320,7 +328,9 @@ def start():
 
     api_id = int(data["api_id"])
     api_hash = data["api_hash"]
-    session_string = data.get("session_string") or ""
+    session_string = (data.get("session_string") or "").strip()
+    if not session_string:
+        return jsonify({"detail": "Session string is required. Login first to generate one."}), 401
     chat_id = data["chat_id"]
     message = (data.get("message") or "").strip()
     image_url = (data.get("image_url") or "").strip()
@@ -348,9 +358,10 @@ def start():
 
     # Validate target before spawning the background sender.
     ensure_event_loop()
-    if not session_string:
-        session_string = load_saved_session()
-    session = StringSession(session_string) if session_string else "telegram_session"
+    try:
+        session = StringSession(session_string)
+    except Exception:
+        return jsonify({"detail": "Invalid session string. Login again to continue."}), 400
     try:
         with session_lock, client_connection(session, api_id, api_hash) as client:
             ensure_authorized(client)
@@ -359,9 +370,6 @@ def start():
         return jsonify({"detail": "Session is not authorized. Use /auth/send-code then /auth/verify to log in."}), 401
     except ValueError as exc:
         return jsonify({"detail": f"Invalid chat id/username: {exc}"}), 400
-    with status_lock:
-        status_state["user"] = status_state.get("user") or None
-
     stop_flag = True
     if worker and worker.is_alive():
         worker.join(timeout=2)
@@ -390,7 +398,6 @@ def start():
         {
             "api_id": api_id,
             "api_hash": api_hash,
-            "session_string": session_string,
             "chat_id": chat_id,
             "message": message,
             "interval_seconds": interval_seconds,
@@ -411,7 +418,9 @@ def send_once():
 
     api_id = int(data["api_id"])
     api_hash = data["api_hash"]
-    session_string = data.get("session_string") or ""
+    session_string = (data.get("session_string") or "").strip()
+    if not session_string:
+        return jsonify({"detail": "Session string is required. Login first to generate one."}), 401
     chat_id = data["chat_id"]
     message = (data.get("message") or "").strip()
     image_url = (data.get("image_url") or "").strip()
@@ -433,9 +442,10 @@ def send_once():
             return jsonify({"detail": "image_url is required when content_type=image"}), 400
 
     ensure_event_loop()
-    if not session_string:
-        session_string = load_saved_session()
-    session = StringSession(session_string) if session_string else "telegram_session"
+    try:
+        session = StringSession(session_string)
+    except Exception:
+        return jsonify({"detail": "Invalid session string. Login again to continue."}), 400
 
     with session_lock, client_connection(session, api_id, api_hash) as client:
         try:
@@ -465,7 +475,7 @@ def send_once():
                         "chat_id": chat_id,
                         "interval_seconds": None,
                         "content_type": content_type,
-                        "user": status_state.get("user"),
+                        "user": None,
                         "next_send_at": None,
                     }
                 )
@@ -491,6 +501,7 @@ def stop():
 @app.route("/auth/logout", methods=["POST"])
 def auth_logout():
     """Clear cached session info."""
+    global saved_session_string
     with status_lock:
         status_state.update(
             {
@@ -506,10 +517,12 @@ def auth_logout():
                 "next_send_at": None,
             }
         )
-    try:
-        os.remove(SESSION_STRING_PATH)
-    except OSError:
-        pass
+    saved_session_string = None
+    for path in (SESSION_STRING_PATH, "telegram_session.session"):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
     return jsonify({"detail": "Signed out"})
 
 
@@ -574,11 +587,6 @@ def auth_verify():
                 "id": me.id if me else None,
                 "name": " ".join([me.first_name or "", me.last_name or ""]).strip() if me else None,
             }
-            if session_string:
-                persist_session(session_string, user_info)
-            with status_lock:
-                status_state["user"] = user_info
-            # Replace cached hash after successful sign in
             auth_cache.pop(phone, None)
             return jsonify(
                 {
