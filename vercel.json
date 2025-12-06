@@ -5,7 +5,8 @@
     { "src": "index.html", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/(start|stop|send-once|status)", "dest": "/userbot.py" },
+    { "src": "/(start|stop|send-once|status|settings)", "dest": "/userbot.py" },
+    { "src": "/auth/(send-code|verify|logout|session)", "dest": "/userbot.py" },
     { "src": "/favicon.ico", "dest": "/index.html" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]

@@ -10,11 +10,12 @@
       theme: {
         extend: {
           colors: {
-            surface: "#f7f7f8",
+            surface: "#edf2ff",
             panel: "#ffffff",
             border: "#e5e7eb",
-            accent: "#111827",
-            muted: "#6b7280"
+            accent: "#0f172a",
+            brand: "#0ea5e9",
+            muted: "#64748b"
           },
           fontFamily: {
             sans: ["Geist", "Inter", "system-ui", "sans-serif"]
@@ -35,41 +36,49 @@
     }
   </style>
 </head>
-<body class="bg-surface text-slate-900 min-h-screen relative overflow-x-hidden">
-  <div class="pointer-events-none absolute inset-0 opacity-50">
-    <div class="absolute -left-10 top-10 h-40 w-40 rounded-full bg-black/5 blur-3xl"></div>
-    <div class="absolute -right-16 top-32 h-48 w-48 rounded-full bg-black/10 blur-3xl"></div>
+<body class="min-h-screen relative overflow-x-hidden text-slate-900 bg-gradient-to-br from-slate-50 via-white to-sky-50">
+  <div class="pointer-events-none absolute inset-0">
+    <div class="absolute -left-10 top-10 h-52 w-52 rounded-full bg-brand/10 blur-3xl"></div>
+    <div class="absolute -right-24 top-16 h-64 w-64 rounded-full bg-amber-200/40 blur-3xl"></div>
+    <div class="absolute left-1/3 -bottom-10 h-40 w-72 rotate-6 bg-gradient-to-r from-brand/20 via-white to-indigo-100 blur-3xl rounded-full"></div>
   </div>
 
   <div class="relative max-w-6xl mx-auto p-4 md:p-8 lg:p-10 space-y-6">
-    <header class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-      <div class="space-y-2">
-        <div class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs uppercase tracking-[0.2em] text-muted bg-panel shadow-sm">
+    <header class="bg-panel/80 backdrop-blur border border-border rounded-3xl shadow-xl shadow-black/10 p-5 md:p-6 lg:p-8 space-y-5">
+      <div class="flex flex-wrap items-center gap-3 justify-between">
+        <div class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs uppercase tracking-[0.2em] text-muted bg-white shadow-sm shadow-black/5">
           Personal tool
+          <span class="inline-flex h-2 w-2 rounded-full bg-brand animate-pulse"></span>
         </div>
-        <div>
-          <h1 class="text-2xl md:text-3xl lg:text-4xl font-semibold text-accent">Telegram Auto Sender</h1>
-          <p class="text-sm md:text-base text-muted">Send once or loop messages with your own API keys.</p>
+        <div class="flex items-center gap-2 text-sm text-muted">
+          <span id="userBadge" class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-border shadow-md">
+            <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span class="text-accent">Ready</span>
+          </span>
+          <button id="authActionButton"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent text-white font-semibold shadow-md shadow-black/10 hover:bg-accent/90 transition focus:outline-none focus:ring-2 focus:ring-brand/30">
+            Login / Get session
+          </button>
         </div>
       </div>
-      <div class="flex items-center gap-2 text-sm text-muted">
-        <span id="userBadge" class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-panel border border-border shadow-md">
-          <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span class="text-accent">Ready</span>
-        </span>
-        <button id="authActionButton"
-          class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent text-white font-semibold shadow-md shadow-black/10 hover:bg-accent/90 transition focus:outline-none focus:ring-2 focus:ring-accent/30">
-          Login / Get session
-        </button>
+      <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+        <div class="space-y-2">
+          <h1 class="text-2xl md:text-3xl lg:text-4xl font-semibold text-accent">Telegram Auto Sender</h1>
+          <p class="text-sm md:text-base text-muted max-w-2xl">Run one-off blasts or scheduled loops with your own Telegram API credentials. Now supports multiple chat targets per run and shared sessions across devices.</p>
+        </div>
+        <div class="bg-brand/10 text-accent rounded-2xl px-4 py-3 border border-brand/20 shadow-inner">
+          <p class="text-xs uppercase tracking-wide text-brand/80">Multi auto-send</p>
+          <p class="text-sm font-semibold">Send to several chats in each cycle.</p>
+        </div>
       </div>
     </header>
 
     <main class="grid gap-4 lg:gap-6 lg:grid-cols-[1.6fr_1fr] items-start">
-      <section class="bg-panel border border-border rounded-2xl shadow-xl shadow-black/10 p-6 md:p-8 space-y-6">
+      <section class="bg-panel border border-border rounded-3xl shadow-xl shadow-black/10 p-6 md:p-8 space-y-7">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-xs uppercase tracking-[0.2em] text-muted">Credentials</p>
-            <p class="text-sm text-muted">Pre-filled with your personal API keys.</p>
+            <p class="text-xs uppercase tracking-[0.2em] text-muted">Credentials & content</p>
+            <p class="text-sm text-muted">Pre-filled with your API keys. Session is reusable across devices.</p>
           </div>
           <span class="text-xs text-muted">Secure local use</span>
         </div>
@@ -79,31 +88,33 @@
             <label class="space-y-2 text-sm">
               <span class="text-muted">API ID</span>
               <input type="number" name="api_id" value="23673698" required
-              class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+              class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30">
             </label>
             <label class="space-y-2 text-sm">
               <span class="text-muted">API Hash</span>
               <input type="text" name="api_hash" value="fb4d9e08cfa6563fec231658c18fe189" required
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30">
             </label>
           </div>
 
           <div class="grid lg:grid-cols-2 gap-4">
             <label class="space-y-2 text-sm lg:col-span-2">
-              <span class="text-muted">Session String (optional)</span>
-              <textarea name="session_string" rows="3" placeholder="Paste Telethon session string to reuse login"
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30"></textarea>
+              <span class="text-muted">Session String</span>
+              <textarea name="session_string" rows="3" placeholder="Paste Telethon session string to reuse login (auto-fills after you log in once)"
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30"></textarea>
+              <span class="text-xs text-muted">We store an encrypted session so you can open this page on any device without logging in again.</span>
             </label>
 
-            <label class="space-y-2 text-sm">
-              <span class="text-muted">Chat ID or Username</span>
-              <input type="text" name="chat_id" required placeholder="-100123... or @channel"
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+            <label class="space-y-2 text-sm lg:col-span-2">
+              <span class="text-muted">Chat IDs or Usernames</span>
+              <textarea name="chat_id" rows="3" required placeholder="-100123... or @channel (one per line or comma separated)"
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30"></textarea>
+              <span class="text-xs text-muted">Multi auto-send: every loop will send to all chats in this list.</span>
             </label>
             <label class="space-y-2 text-sm">
               <span class="text-muted">Interval (seconds)</span>
               <input type="number" name="interval_seconds" min="1" step="1" required value="60"
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30">
             </label>
           </div>
 
@@ -113,7 +124,7 @@
               <div class="relative">
                 <input type="hidden" id="contentType" name="content_type" value="text">
                 <button type="button" id="contentTypeButton"
-                  class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-left text-accent font-medium focus:outline-none focus:ring-2 focus:ring-accent/30 flex items-center justify-between">
+                  class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-left text-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand/30 flex items-center justify-between">
                   <span id="contentTypeLabel">Text only</span>
                   <svg class="h-4 w-4 text-muted" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.086l3.71-3.856a.75.75 0 111.08 1.04l-4.25 4.417a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
@@ -135,7 +146,7 @@
             <label id="imageSourceField" class="space-y-2 text-sm hidden">
               <span class="text-muted">Image input</span>
               <select id="imageSource" name="image_source"
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent focus:outline-none focus:ring-2 focus:ring-accent/30">
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent focus:outline-none focus:ring-2 focus:ring-brand/30">
                 <option value="url" selected>Use image URL</option>
                 <option value="upload">Upload image</option>
               </select>
@@ -146,36 +157,36 @@
             <label id="imageUrlField" class="space-y-2 text-sm hidden">
               <span class="text-muted">Image URL</span>
               <input type="text" id="imageUrl" name="image_url" placeholder="https://example.com/image.jpg"
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30">
             </label>
             <label id="imageFileField" class="space-y-2 text-sm hidden">
               <span class="text-muted">Upload image</span>
               <input type="file" id="imageFile" accept="image/*"
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
+                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30">
             </label>
           </div>
 
           <label class="space-y-2 text-sm block">
             <span class="text-muted">Message (caption if sending an image)</span>
             <textarea name="message" rows="3" required placeholder="Type the text to send"
-              class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30"></textarea>
+              class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30"></textarea>
           </label>
 
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
             <button type="submit"
-              class="inline-flex items-center justify-center gap-2 rounded-xl bg-accent text-white px-4 py-3 font-semibold hover:bg-accent/90 transition focus:outline-none focus:ring-2 focus:ring-accent/40">
+              class="inline-flex items-center justify-center gap-2 rounded-xl bg-accent text-white px-4 py-3 font-semibold shadow-lg shadow-brand/20 hover:bg-accent/90 transition focus:outline-none focus:ring-2 focus:ring-brand/40">
               Start Auto Send
             </button>
             <button type="button" id="sendOnceButton"
-              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 font-semibold text-accent hover:border-accent/60 transition focus:outline-none focus:ring-2 focus:ring-accent/30">
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 font-semibold text-accent hover:border-brand/60 transition focus:outline-none focus:ring-2 focus:ring-brand/30">
               Send Once
             </button>
             <button type="button" id="stopButton"
-              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 font-semibold text-muted hover:text-accent hover:border-accent/60 transition focus:outline-none focus:ring-2 focus:ring-accent/20">
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 font-semibold text-muted hover:text-accent hover:border-brand/60 transition focus:outline-none focus:ring-2 focus:ring-brand/20">
               Stop
             </button>
             <button type="button" id="saveButton"
-              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 font-semibold text-accent hover:border-accent/60 transition focus:outline-none focus:ring-2 focus:ring-accent/30">
+              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 font-semibold text-accent hover:border-brand/60 transition focus:outline-none focus:ring-2 focus:ring-brand/30">
               Save Inputs
             </button>
           </div>
@@ -183,11 +194,14 @@
       </section>
 
       <aside class="space-y-4 lg:space-y-5">
-        <div class="bg-panel border border-border rounded-2xl p-6 space-y-4 shadow-xl shadow-black/10">
+        <div class="bg-panel border border-border rounded-3xl p-6 space-y-4 shadow-xl shadow-black/10">
           <div class="flex items-center justify-between">
-            <p class="text-sm text-muted">Status</p>
+            <div>
+              <p class="text-sm text-muted">Status</p>
+              <p class="text-xs text-brand">Live across devices</p>
+            </div>
             <button id="refreshStatus" type="button"
-              class="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-accent hover:border-accent/60 transition focus:outline-none focus:ring-2 focus:ring-accent/20">
+              class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-accent hover:border-brand/60 transition focus:outline-none focus:ring-2 focus:ring-brand/20">
               Refresh
             </button>
           </div>
@@ -216,8 +230,11 @@
               <dd id="statusInterval" class="text-accent">--</dd>
             </div>
             <div class="space-y-1 col-span-2">
-              <dt>Target</dt>
-              <dd id="statusTarget" class="text-accent break-all">--</dd>
+              <dt>Targets</dt>
+              <dd class="space-y-2">
+                <div id="statusTargets" class="flex flex-wrap gap-2"></div>
+                <div id="statusTarget" class="text-accent break-all text-sm"></div>
+              </dd>
             </div>
             <div class="space-y-1 col-span-2">
               <dt>Content type</dt>
@@ -230,24 +247,26 @@
               <span id="countdownLabel" class="text-accent font-semibold">--</span>
             </div>
             <div class="w-full bg-border rounded-full h-2 overflow-hidden">
-              <div id="countdownBar" class="h-2 bg-accent/70 transition-[width] duration-200 ease-linear" style="width:0%;"></div>
+              <div id="countdownBar" class="h-2 bg-brand transition-[width] duration-200 ease-linear" style="width:0%;"></div>
             </div>
           </div>
           <p id="status" class="text-sm text-accent">Idle</p>
         </div>
 
-        <div class="bg-panel border border-border rounded-2xl p-6 space-y-3 text-sm text-muted shadow-xl shadow-black/10">
+        <div class="bg-panel border border-border rounded-3xl p-6 space-y-3 text-sm text-muted shadow-xl shadow-black/10">
           <p class="font-semibold text-accent">Usage</p>
           <ul class="list-disc list-inside space-y-1">
-            <li>Using your personal API ID/Hash (pre-filled above).</li>
+            <li>Use your personal API ID/Hash (pre-filled above).</li>
             <li>For channels/groups use full <code class="text-accent">-100</code> chat id or a username.</li>
-            <li>Session string reuses login; leave empty to use the saved session file.</li>
-            <li>"Start Auto Send" loops, "Send Once" fires immediately, "Stop" halts the loop.</li>
+            <li>Session string is stored encrypted; new devices pull it automatically.</li>
+            <li>"Start Auto Send" loops; "Send Once" fires immediately; "Stop" halts the loop.</li>
             <li>Select "Image with caption" to upload a photo or use an image URL; the message field becomes the caption.</li>
+            <li>Add multiple chat IDs to broadcast in one loop.</li>
           </ul>
         </div>
       </aside>
-  </main>
+    </main>
+  </div>
 
   <!-- Auth Modal -->
   <div id="authOverlay" class="fixed inset-0 bg-black/30 backdrop-blur-sm hidden transition-opacity duration-200"></div>
@@ -259,8 +278,8 @@
           <h2 class="text-lg font-semibold text-accent">Login to get session string</h2>
         </div>
         <button type="button" id="closeAuthModal"
-          class="rounded-full p-2 text-muted hover:text-accent hover:bg-surface focus:outline-none focus:ring-2 focus:ring-accent/20">
-          ✕
+          class="rounded-full p-2 text-muted hover:text-accent hover:bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20">
+          x
         </button>
       </div>
       <p class="text-sm text-muted">Use your phone number once to authorize. We return a session string you can paste back into the form.</p>
@@ -327,6 +346,7 @@
     const statusSentCount = document.getElementById("statusSentCount");
     const statusInterval = document.getElementById("statusInterval");
     const statusTarget = document.getElementById("statusTarget");
+    const statusTargets = document.getElementById("statusTargets");
     const statusContentType = document.getElementById("statusContentType");
     const authModal = document.getElementById("authModal");
     const authOverlay = document.getElementById("authOverlay");
@@ -369,6 +389,28 @@
       updateUserBadge();
     }
 
+    async function loadServerSession(applyToForm = false) {
+      try {
+        const res = await fetch("/auth/session");
+        if (!res.ok) return "";
+        const data = await res.json();
+        if (data.user) {
+          localAuth.user = data.user;
+        }
+        if (data.session_string) {
+          persistLocalAuth(data.session_string, data.user || null);
+          if (applyToForm || !form.elements["session_string"].value) {
+            form.elements["session_string"].value = data.session_string;
+          }
+        } else {
+          updateUserBadge();
+        }
+        return data.session_string || "";
+      } catch (err) {
+        return "";
+      }
+    }
+
     function clearLocalAuth() {
       localAuth = { session_string: "", user: null };
       try {
@@ -382,13 +424,14 @@
 
     function updateUserBadge() {
       const user = localAuth.user;
+      const indicator = '<span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>';
       if (user && user.name) {
-        userBadge.textContent = "Welcome, " + user.name;
+        userBadge.innerHTML = indicator + '<span class="text-accent font-semibold">Signed in as ' + user.name + "</span>";
         userBadge.className =
-          "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm";
+          "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand/10 text-accent border border-brand/30 shadow-sm";
         authActionButton.textContent = "Sign out";
       } else {
-        userBadge.textContent = "Ready";
+        userBadge.innerHTML = indicator + '<span class="text-accent">Ready</span>';
         userBadge.className =
           "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-panel border border-border shadow-md";
         authActionButton.textContent = "Login / Get session";
@@ -415,6 +458,13 @@
       authStatus.className = "text-sm font-medium " + (toneClasses[tone] || toneClasses.muted);
     }
 
+    async function ensureSessionValue() {
+      const existing = form.elements["session_string"].value.trim();
+      if (existing) return existing;
+      const fetched = await loadServerSession(true);
+      return (form.elements["session_string"].value.trim() || fetched || "").trim();
+    }
+
     function collectFormValues() {
       const formData = new FormData(form);
       const data = {};
@@ -427,6 +477,7 @@
       data.image_source = data.image_source || "url";
       data.image_url = data.image_url || "";
       data.message = data.message || "";
+      data.chat_id = (data.chat_id || "").replace(/\r/g, "\n").trim();
       return data;
     }
 
@@ -622,6 +673,24 @@
       return d.toLocaleString();
     }
 
+    function renderTargets(targets, fallbackText) {
+      if (!statusTargets) return;
+      statusTargets.innerHTML = "";
+      const items = Array.isArray(targets) ? targets.filter(Boolean) : [];
+      if (items.length === 0) {
+        statusTarget.textContent = fallbackText || "--";
+        return;
+      }
+      items.forEach(function (t) {
+        const chip = document.createElement("span");
+        chip.textContent = t;
+        chip.className =
+          "inline-flex items-center gap-1 px-3 py-1 rounded-full bg-brand/10 text-accent border border-brand/20 text-xs font-medium";
+        statusTargets.appendChild(chip);
+      });
+      statusTarget.textContent = fallbackText || items.join(", ");
+    }
+
     function renderStatus(data) {
       const active = Boolean(data.active);
       statusBadge.textContent = active ? "Active" : "Idle";
@@ -635,9 +704,13 @@
       statusLastSent.textContent = fmtTs(data.last_sent_at);
       statusSentCount.textContent = data.sent_count ?? 0;
       statusInterval.textContent = data.interval_seconds ?? "--";
-      statusTarget.textContent = data.chat_id ?? "--";
+      const targets = Array.isArray(data.targets) ? data.targets : (data.chat_id ? [data.chat_id] : []);
+      renderTargets(targets, data.chat_id ?? "--");
       statusContentType.textContent = data.content_type || "--";
       lastStatus = data;
+      if (data.user) {
+        localAuth.user = data.user;
+      }
       updateUserBadge();
     }
 
@@ -654,6 +727,9 @@
         return;
       }
       const base = collectFormValues();
+      if (!base.session_string) {
+        base.session_string = await ensureSessionValue();
+      }
       if (!base.session_string) {
         setStatus("Session string is required. Login first to start sending.", "error");
         return;
@@ -676,6 +752,9 @@
         return;
       }
       const base = collectFormValues();
+      if (!base.session_string) {
+        base.session_string = await ensureSessionValue();
+      }
       if (!base.session_string) {
         setStatus("Session string is required. Login first to send a message.", "error");
         return;
@@ -787,6 +866,7 @@
     });
     imageSourceSelect.addEventListener("change", syncContentFields);
     loadLocalAuth();
+    loadServerSession();
     loadSettings();
     syncContentFields();
     fetchStatus();

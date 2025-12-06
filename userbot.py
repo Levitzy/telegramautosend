@@ -6,6 +6,7 @@ import threading
 import time
 import os
 import hashlib
+import re
 from contextlib import contextmanager
 from typing import Any, Dict
 
@@ -39,6 +40,7 @@ status_state = {
     "content_type": None,
     "user": None,
     "next_send_at": None,
+    "targets": [],
 }
 SESSION_STRING_PATH = "session_string.txt"
 saved_session_string = None
@@ -139,6 +141,9 @@ def load_saved_session():
                 decrypted = decrypt_session_string(doc["session_enc"])
                 if decrypted:
                     saved_session_string = decrypted
+                    if doc.get("user"):
+                        with status_lock:
+                            status_state["user"] = doc.get("user")
                     return saved_session_string
         except mongo_errors.PyMongoError:
             pass
@@ -177,6 +182,23 @@ def persist_session(session_string: str, user_info: Dict[str, Any] | None = None
             pass
 
 
+def clear_persisted_session():
+    """Remove any cached session info from disk/DB and memory."""
+    global saved_session_string
+    saved_session_string = None
+    for path in (SESSION_STRING_PATH, "telegram_session.session"):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    db, _ = get_mongo()
+    if db is not None:
+        try:
+            db.sessions.delete_one({"_id": "latest"})
+        except mongo_errors.PyMongoError:
+            pass
+
+
 def resolve_target(client: TelegramClient, chat_id: str) -> Any:
     """Resolve chat_id/username/link to a Telethon-friendly target."""
     text = str(chat_id).strip()
@@ -201,6 +223,23 @@ def decode_base64_image(image_base64: str) -> bytes:
         return base64.b64decode(data)
     except (binascii.Error, ValueError) as exc:
         raise ValueError("Invalid base64 image data") from exc
+
+
+def parse_targets(raw: Any) -> list[str]:
+    """Split chat identifiers into a clean list (supports commas or new lines)."""
+    if raw is None:
+        return []
+    text = str(raw).replace("\r", "\n")
+    parts = re.split(r"[,\n]", text)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def obtain_session_string(payload_session: str | None = None) -> str:
+    """Return a session string, preferring the payload then any saved session."""
+    session_string = (payload_session or "").strip()
+    if session_string:
+        return session_string
+    return load_saved_session() or ""
 
 
 @contextmanager
@@ -244,7 +283,7 @@ def run_sender(
     api_id,
     api_hash,
     session_string,
-    chat_id,
+    targets,
     message,
     interval_seconds,
     content_type,
@@ -269,7 +308,7 @@ def run_sender(
                 status_state.update({"active": False, "mode": "unauthorized"})
             return
         try:
-            target = resolve_target(client, chat_id)
+            resolved_targets = [resolve_target(client, t) for t in targets]
         except ValueError as exc:
             # Abort the loop if target cannot be resolved.
             stop_flag = True
@@ -284,7 +323,8 @@ def run_sender(
                     "started_at": time.time(),
                     "last_sent_at": None,
                     "sent_count": 0,
-                    "chat_id": chat_id,
+                    "chat_id": ", ".join(targets),
+                    "targets": targets,
                     "interval_seconds": interval_seconds,
                     "content_type": content_type,
                     "next_send_at": time.time() + interval_seconds,
@@ -292,18 +332,25 @@ def run_sender(
             )
 
         while not stop_flag:
-            send_content(
-                client,
-                target,
-                content_type,
-                message,
-                image_url,
-                image_bytes=image_bytes,
-                image_name=image_name,
-            )
+            for idx, target in enumerate(resolved_targets):
+                try:
+                    send_content(
+                        client,
+                        target,
+                        content_type,
+                        message,
+                        image_url,
+                        image_bytes=image_bytes,
+                        image_name=image_name,
+                    )
+                    with status_lock:
+                        status_state["last_sent_at"] = time.time()
+                        status_state["sent_count"] += 1
+                        status_state["chat_id"] = targets[idx]
+                except Exception as exc:
+                    print(f"Failed to send to {targets[idx]}: {exc}")
+                    continue
             with status_lock:
-                status_state["last_sent_at"] = time.time()
-                status_state["sent_count"] += 1
                 status_state["next_send_at"] = time.time() + interval_seconds
             time.sleep(interval_seconds)
     with status_lock:
@@ -328,10 +375,12 @@ def start():
 
     api_id = int(data["api_id"])
     api_hash = data["api_hash"]
-    session_string = (data.get("session_string") or "").strip()
+    session_string = obtain_session_string(data.get("session_string"))
     if not session_string:
-        return jsonify({"detail": "Session string is required. Login first to generate one."}), 401
-    chat_id = data["chat_id"]
+        return jsonify({"detail": "Session string is required. Login or reuse the saved session first."}), 401
+    targets = parse_targets(data.get("chat_id") or data.get("targets"))
+    if not targets:
+        return jsonify({"detail": "At least one chat id/username is required"}), 400
     message = (data.get("message") or "").strip()
     image_url = (data.get("image_url") or "").strip()
     image_base64 = (data.get("image_base64") or "").strip()
@@ -356,7 +405,7 @@ def start():
         elif not image_url:
             return jsonify({"detail": "image_url is required when content_type=image"}), 400
 
-    # Validate target before spawning the background sender.
+    # Validate targets before spawning the background sender.
     ensure_event_loop()
     try:
         session = StringSession(session_string)
@@ -365,7 +414,8 @@ def start():
     try:
         with session_lock, client_connection(session, api_id, api_hash) as client:
             ensure_authorized(client)
-            resolve_target(client, chat_id)
+            for tgt in targets:
+                resolve_target(client, tgt)
     except AuthKeyUnregisteredError:
         return jsonify({"detail": "Session is not authorized. Use /auth/send-code then /auth/verify to log in."}), 401
     except ValueError as exc:
@@ -381,7 +431,7 @@ def start():
             api_id,
             api_hash,
             session_string,
-            chat_id,
+            targets,
             message,
             interval_seconds,
             content_type,
@@ -398,7 +448,7 @@ def start():
         {
             "api_id": api_id,
             "api_hash": api_hash,
-            "chat_id": chat_id,
+            "chat_id": ", ".join(targets),
             "message": message,
             "interval_seconds": interval_seconds,
             "content_type": content_type,
@@ -418,10 +468,12 @@ def send_once():
 
     api_id = int(data["api_id"])
     api_hash = data["api_hash"]
-    session_string = (data.get("session_string") or "").strip()
+    session_string = obtain_session_string(data.get("session_string"))
     if not session_string:
-        return jsonify({"detail": "Session string is required. Login first to generate one."}), 401
-    chat_id = data["chat_id"]
+        return jsonify({"detail": "Session string is required. Login or reuse the saved session first."}), 401
+    targets = parse_targets(data.get("chat_id") or data.get("targets"))
+    if not targets:
+        return jsonify({"detail": "At least one chat id/username is required"}), 400
     message = (data.get("message") or "").strip()
     image_url = (data.get("image_url") or "").strip()
     image_base64 = (data.get("image_base64") or "").strip()
@@ -453,16 +505,17 @@ def send_once():
         except AuthKeyUnregisteredError:
             return jsonify({"detail": "Session is not authorized. Use /auth/send-code then /auth/verify to log in."}), 401
         try:
-            target = resolve_target(client, chat_id)
-            send_content(
-                client,
-                target,
-                content_type,
-                message,
-                image_url,
-                image_bytes=image_bytes,
-                image_name=image_name,
-            )
+            for tgt in targets:
+                target = resolve_target(client, tgt)
+                send_content(
+                    client,
+                    target,
+                    content_type,
+                    message,
+                    image_url,
+                    image_bytes=image_bytes,
+                    image_name=image_name,
+                )
             now_ts = time.time()
             with status_lock:
                 status_state.update(
@@ -471,11 +524,12 @@ def send_once():
                         "mode": "once",
                         "started_at": now_ts,
                         "last_sent_at": now_ts,
-                        "sent_count": 1,
-                        "chat_id": chat_id,
+                        "sent_count": len(targets),
+                        "chat_id": ", ".join(targets),
+                        "targets": targets,
                         "interval_seconds": None,
                         "content_type": content_type,
-                        "user": None,
+                        "user": status_state.get("user"),
                         "next_send_at": None,
                     }
                 )
@@ -493,6 +547,7 @@ def stop():
         status_state["active"] = False
         status_state["mode"] = "stopped"
         status_state["next_send_at"] = None
+        status_state["targets"] = []
     if worker and worker.is_alive():
         worker.join(timeout=2)
     return jsonify({"detail": "Auto sender stopped"})
@@ -501,7 +556,6 @@ def stop():
 @app.route("/auth/logout", methods=["POST"])
 def auth_logout():
     """Clear cached session info."""
-    global saved_session_string
     with status_lock:
         status_state.update(
             {
@@ -515,14 +569,10 @@ def auth_logout():
                 "interval_seconds": None,
                 "content_type": None,
                 "next_send_at": None,
+                "targets": [],
             }
         )
-    saved_session_string = None
-    for path in (SESSION_STRING_PATH, "telegram_session.session"):
-        try:
-            os.remove(path)
-        except OSError:
-            pass
+    clear_persisted_session()
     return jsonify({"detail": "Signed out"})
 
 
@@ -587,6 +637,9 @@ def auth_verify():
                 "id": me.id if me else None,
                 "name": " ".join([me.first_name or "", me.last_name or ""]).strip() if me else None,
             }
+            persist_session(session_string, user_info)
+            with status_lock:
+                status_state["user"] = user_info
             auth_cache.pop(phone, None)
             return jsonify(
                 {
@@ -603,6 +656,15 @@ def auth_verify():
         return jsonify({"detail": f"Too many attempts. Wait {exc.seconds} seconds."}), 429
     except Exception as exc:
         return jsonify({"detail": f"Could not verify: {exc}"}), 400
+
+
+@app.route("/auth/session", methods=["GET"])
+def auth_session():
+    """Return any stored session string so other devices can reuse login."""
+    session_string = load_saved_session() or ""
+    with status_lock:
+        user = status_state.get("user")
+    return jsonify({"session_string": session_string, "user": user})
 
 
 @app.route("/status", methods=["GET"])
