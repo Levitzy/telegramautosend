@@ -5,6 +5,7 @@ import io
 import threading
 import time
 import os
+import hashlib
 from contextlib import contextmanager
 from typing import Any, Dict
 
@@ -73,7 +74,7 @@ def get_mongo():
 
 def save_settings(data: Dict[str, Any]):
     db, _ = get_mongo()
-    if not db:
+    if db is None:
         return
     try:
         db.settings.update_one({"_id": "form"}, {"$set": {"data": data, "updated_at": time.time()}}, upsert=True)
@@ -83,7 +84,7 @@ def save_settings(data: Dict[str, Any]):
 
 def load_settings() -> Dict[str, Any]:
     db, _ = get_mongo()
-    if not db:
+    if db is None:
         return {}
     try:
         doc = db.settings.find_one({"_id": "form"}) or {}
@@ -92,10 +93,50 @@ def load_settings() -> Dict[str, Any]:
         return {}
 
 
+def _get_secret_bytes() -> bytes:
+    secret = os.environ.get("SESSION_SECRET", "")
+    if not secret:
+        return b""
+    return hashlib.sha256(secret.encode()).digest()
+
+
+def encrypt_session_string(session_string: str) -> str:
+    key = _get_secret_bytes()
+    if not key:
+        return session_string
+    data = session_string.encode()
+    enc = bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
+    return base64.urlsafe_b64encode(enc).decode()
+
+
+def decrypt_session_string(payload: str) -> str:
+    key = _get_secret_bytes()
+    if not key:
+        return payload
+    try:
+        raw = base64.urlsafe_b64decode(payload.encode())
+        dec = bytes(b ^ key[i % len(key)] for i, b in enumerate(raw))
+        return dec.decode()
+    except Exception:
+        return ""
+
+
 def load_saved_session():
     global saved_session_string
     if saved_session_string:
         return saved_session_string
+    # Prefer DB stored session
+    db, _ = get_mongo()
+    if db is not None:
+        try:
+            doc = db.sessions.find_one({"_id": "latest"})
+            if doc and doc.get("session_enc"):
+                decrypted = decrypt_session_string(doc["session_enc"])
+                if decrypted:
+                    saved_session_string = decrypted
+                    return saved_session_string
+        except mongo_errors.PyMongoError:
+            pass
     if os.path.exists(SESSION_STRING_PATH):
         try:
             with open(SESSION_STRING_PATH, "r", encoding="utf-8") as fh:
@@ -105,7 +146,7 @@ def load_saved_session():
     return saved_session_string
 
 
-def persist_session(session_string: str):
+def persist_session(session_string: str, user_info: Dict[str, Any] | None = None):
     global saved_session_string
     saved_session_string = session_string
     try:
@@ -113,6 +154,22 @@ def persist_session(session_string: str):
             fh.write(session_string)
     except OSError:
         pass
+    db, _ = get_mongo()
+    if db is not None:
+        try:
+            db.sessions.update_one(
+                {"_id": "latest"},
+                {
+                    "$set": {
+                        "session_enc": encrypt_session_string(session_string),
+                        "user": user_info or {},
+                        "updated_at": time.time(),
+                    }
+                },
+                upsert=True,
+            )
+        except mongo_errors.PyMongoError:
+            pass
 
 
 def resolve_target(client: TelegramClient, chat_id: str) -> Any:
@@ -518,7 +575,7 @@ def auth_verify():
                 "name": " ".join([me.first_name or "", me.last_name or ""]).strip() if me else None,
             }
             if session_string:
-                persist_session(session_string)
+                persist_session(session_string, user_info)
             with status_lock:
                 status_state["user"] = user_info
             # Replace cached hash after successful sign in
