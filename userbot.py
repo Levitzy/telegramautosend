@@ -80,16 +80,14 @@ def get_mongo():
 
 
 def list_runs(limit: int = 15):
-    """Return recent runs from DB."""
+    """Return recent runs, merging DB and in-memory snapshots."""
+    merged: Dict[str, Dict[str, Any]] = {}
     db, _ = get_mongo()
-    if db is None:
-        return []
-    try:
-        cursor = db.runs.find().sort("started_at", -1).limit(limit)
-        runs = []
-        for doc in cursor:
-            runs.append(
-                {
+    if db is not None:
+        try:
+            cursor = db.runs.find().sort("started_at", -1).limit(limit)
+            for doc in cursor:
+                merged[str(doc.get("_id"))] = {
                     "id": doc.get("_id"),
                     "active": bool(doc.get("active")),
                     "mode": doc.get("mode"),
@@ -102,10 +100,29 @@ def list_runs(limit: int = 15):
                     "next_send_at": doc.get("next_send_at"),
                     "messages_count": len(doc.get("messages") or []),
                 }
+        except mongo_errors.PyMongoError:
+            pass
+    with status_lock:
+        for rid, snap in run_statuses.items():
+            merged.setdefault(
+                rid,
+                {
+                    "id": rid,
+                    "active": snap.get("active"),
+                    "mode": snap.get("mode"),
+                    "started_at": snap.get("started_at"),
+                    "last_sent_at": snap.get("last_sent_at"),
+                    "sent_count": snap.get("sent_count"),
+                    "targets": snap.get("targets"),
+                    "content_type": snap.get("content_type"),
+                    "interval_seconds": snap.get("interval_seconds"),
+                    "next_send_at": snap.get("next_send_at"),
+                    "messages_count": len(snap.get("messages") or []),
+                },
             )
-        return runs
-    except mongo_errors.PyMongoError:
-        return []
+    runs = list(merged.values())
+    runs.sort(key=lambda r: r.get("started_at") or 0, reverse=True)
+    return runs[:limit]
 
 
 def save_settings(data: Dict[str, Any]):
@@ -570,6 +587,21 @@ def start():
     run_id = str(uuid.uuid4())
     with status_lock:
         status_state["run_id"] = run_id
+        run_statuses[run_id] = {
+            "active": True,
+            "mode": "loop",
+            "started_at": time.time(),
+            "last_sent_at": None,
+            "sent_count": 0,
+            "chat_id": ", ".join(targets),
+            "targets": targets,
+            "interval_seconds": interval_seconds,
+            "content_type": content_type,
+            "next_send_at": None,
+            "run_id": run_id,
+            "messages": messages_list,
+            "active_runs": len(run_registry) + 1,
+        }
     stop_event = threading.Event()
     worker_thread = threading.Thread(
         target=run_sender,
