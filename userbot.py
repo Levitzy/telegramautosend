@@ -6,6 +6,7 @@ import threading
 import time
 import os
 import hashlib
+import uuid
 import re
 from contextlib import contextmanager
 from typing import Any, Dict
@@ -41,6 +42,8 @@ status_state = {
     "user": None,
     "next_send_at": None,
     "targets": [],
+    "run_id": None,
+    "messages": [],
 }
 SESSION_STRING_PATH = "session_string.txt"
 saved_session_string = None
@@ -199,6 +202,23 @@ def clear_persisted_session():
             pass
 
 
+def get_current_user() -> Dict[str, Any] | None:
+    """Return the user info stored in status_state, if any."""
+    with status_lock:
+        return status_state.get("user")
+
+
+def upsert_run(run_id: str, payload: Dict[str, Any]):
+    """Persist run progress for a signed-in user."""
+    db, _ = get_mongo()
+    if db is None:
+        return
+    try:
+        db.runs.update_one({"_id": run_id}, {"$set": payload}, upsert=True)
+    except mongo_errors.PyMongoError:
+        pass
+
+
 def resolve_target(client: TelegramClient, chat_id: str) -> Any:
     """Resolve chat_id/username/link to a Telethon-friendly target."""
     text = str(chat_id).strip()
@@ -240,6 +260,36 @@ def obtain_session_string(payload_session: str | None = None) -> str:
     if session_string:
         return session_string
     return load_saved_session() or ""
+
+
+def get_user_from_client(client: TelegramClient) -> Dict[str, Any] | None:
+    """Fetch user info from Telegram and cache it in status_state."""
+    try:
+        me = client.get_me()
+    except Exception:
+        return None
+    if not me:
+        return None
+    user_info = {
+        "id": me.id,
+        "name": " ".join([me.first_name or "", me.last_name or ""]).strip(),
+    }
+    with status_lock:
+        status_state["user"] = user_info
+    existing_session = load_saved_session() or ""
+    if existing_session:
+        persist_session(existing_session, user_info)
+    return user_info
+
+
+def build_message_list(message: str, messages: list[str] | None) -> list[str]:
+    """Return a cleaned list of messages; fallback to single message if list empty."""
+    msgs = []
+    if messages:
+        msgs.extend([m.strip() for m in messages if str(m).strip()])
+    if message and message.strip():
+        msgs.insert(0, message.strip())
+    return msgs or []
 
 
 @contextmanager
@@ -284,12 +334,14 @@ def run_sender(
     api_hash,
     session_string,
     targets,
-    message,
+    messages,
     interval_seconds,
     content_type,
     image_url,
     image_bytes,
     image_name,
+    run_id: str | None,
+    user_info: Dict[str, Any] | None,
 ):
     global stop_flag
     ensure_event_loop()
@@ -328,35 +380,85 @@ def run_sender(
                     "interval_seconds": interval_seconds,
                     "content_type": content_type,
                     "next_send_at": time.time() + interval_seconds,
+                    "run_id": run_id,
+                    "user": user_info or status_state.get("user"),
+                    "messages": messages,
                 }
+            )
+        if run_id:
+            upsert_run(
+                run_id,
+                {
+                    "_id": run_id,
+                    "user_id": (user_info or {}).get("id"),
+                    "user": user_info or {},
+                    "targets": targets,
+                    "messages": messages,
+                    "image_url": image_url if content_type == "image" else None,
+                    "content_type": content_type,
+                    "interval_seconds": interval_seconds,
+                    "active": True,
+                    "mode": "loop",
+                    "started_at": status_state["started_at"],
+                    "last_sent_at": None,
+                    "sent_count": 0,
+                    "next_send_at": status_state["next_send_at"],
+                },
             )
 
         while not stop_flag:
             for idx, target in enumerate(resolved_targets):
-                try:
-                    send_content(
-                        client,
-                        target,
-                        content_type,
-                        message,
-                        image_url,
-                        image_bytes=image_bytes,
-                        image_name=image_name,
-                    )
-                    with status_lock:
-                        status_state["last_sent_at"] = time.time()
-                        status_state["sent_count"] += 1
-                        status_state["chat_id"] = targets[idx]
-                except Exception as exc:
-                    print(f"Failed to send to {targets[idx]}: {exc}")
-                    continue
+                for msg in messages:
+                    try:
+                        send_content(
+                            client,
+                            target,
+                            content_type,
+                            msg,
+                            image_url,
+                            image_bytes=image_bytes,
+                            image_name=image_name,
+                        )
+                        with status_lock:
+                            status_state["last_sent_at"] = time.time()
+                            status_state["sent_count"] += 1
+                            status_state["chat_id"] = targets[idx]
+                            status_state["user"] = user_info or status_state.get("user")
+                    except Exception as exc:
+                        print(f"Failed to send to {targets[idx]}: {exc}")
+                        continue
             with status_lock:
                 status_state["next_send_at"] = time.time() + interval_seconds
+                now_next = status_state["next_send_at"]
+                now_last = status_state["last_sent_at"]
+                now_sent = status_state["sent_count"]
+            if run_id:
+                upsert_run(
+                    run_id,
+                    {
+                        "last_sent_at": now_last,
+                        "sent_count": now_sent,
+                        "next_send_at": now_next,
+                        "active": True,
+                        "mode": "loop",
+                    },
+                )
             time.sleep(interval_seconds)
     with status_lock:
         status_state["active"] = False
         status_state["mode"] = "stopped"
         status_state["next_send_at"] = None
+        status_state["run_id"] = None
+    if run_id:
+        upsert_run(
+            run_id,
+            {
+                "active": False,
+                "mode": "stopped",
+                "stopped_at": time.time(),
+                "next_send_at": None,
+            },
+        )
 
 
 @app.route("/")
@@ -369,9 +471,12 @@ def start():
     global stop_flag, worker
     data = request.get_json()
 
-    # Prevent overlapping runs from locking the SQLite session.
+    # If a run is in progress, stop it first to allow back-to-back requests.
     if status_state.get("active"):
-        return jsonify({"detail": "Auto sender is already running; stop it before starting again."}), 409
+        stop_flag = True
+        if worker and worker.is_alive():
+            worker.join(timeout=2)
+        stop_flag = False
 
     api_id = int(data["api_id"])
     api_hash = data["api_hash"]
@@ -382,6 +487,10 @@ def start():
     if not targets:
         return jsonify({"detail": "At least one chat id/username is required"}), 400
     message = (data.get("message") or "").strip()
+    messages_multi = data.get("messages") or data.get("messages_multi") or []
+    if isinstance(messages_multi, str):
+        messages_multi = [m for m in messages_multi.replace("\r", "\n").split("\n") if m.strip()]
+    messages_list = build_message_list(message, messages_multi)
     image_url = (data.get("image_url") or "").strip()
     image_base64 = (data.get("image_base64") or "").strip()
     image_name = (data.get("image_name") or "").strip() or "upload"
@@ -394,7 +503,7 @@ def start():
         return jsonify({"detail": "interval_seconds is required"}), 400
     interval_seconds = float(interval_seconds_raw)
 
-    if content_type == "text" and not message:
+    if content_type == "text" and not messages_list:
         return jsonify({"detail": "message is required for text sends"}), 400
     if content_type == "image":
         if image_base64:
@@ -405,21 +514,28 @@ def start():
         elif not image_url:
             return jsonify({"detail": "image_url is required when content_type=image"}), 400
 
-    # Validate targets before spawning the background sender.
+    # Validate targets before spawning the background sender and fetch user info.
     ensure_event_loop()
     try:
         session = StringSession(session_string)
     except Exception:
         return jsonify({"detail": "Invalid session string. Login again to continue."}), 400
+    user_info = get_current_user()
     try:
         with session_lock, client_connection(session, api_id, api_hash) as client:
             ensure_authorized(client)
             for tgt in targets:
                 resolve_target(client, tgt)
+            if user_info is None:
+                user_info = get_user_from_client(client)
     except AuthKeyUnregisteredError:
         return jsonify({"detail": "Session is not authorized. Use /auth/send-code then /auth/verify to log in."}), 401
     except ValueError as exc:
         return jsonify({"detail": f"Invalid chat id/username: {exc}"}), 400
+
+    run_id = str(uuid.uuid4())
+    with status_lock:
+        status_state["run_id"] = run_id
     stop_flag = True
     if worker and worker.is_alive():
         worker.join(timeout=2)
@@ -432,12 +548,14 @@ def start():
             api_hash,
             session_string,
             targets,
-            message,
+            messages_list,
             interval_seconds,
             content_type,
             image_url,
             image_bytes,
             image_name,
+            run_id,
+            user_info,
         ),
         daemon=True,
     )
@@ -450,13 +568,14 @@ def start():
             "api_hash": api_hash,
             "chat_id": ", ".join(targets),
             "message": message,
+            "messages": messages_multi,
             "interval_seconds": interval_seconds,
             "content_type": content_type,
             "image_url": image_url,
         }
     )
 
-    return jsonify({"detail": "Auto sender started"})
+    return jsonify({"detail": "Auto sender started", "run_id": run_id})
 
 
 @app.route("/send-once", methods=["POST"])
@@ -475,6 +594,10 @@ def send_once():
     if not targets:
         return jsonify({"detail": "At least one chat id/username is required"}), 400
     message = (data.get("message") or "").strip()
+    messages_multi = data.get("messages") or data.get("messages_multi") or []
+    if isinstance(messages_multi, str):
+        messages_multi = [m for m in messages_multi.replace("\r", "\n").split("\n") if m.strip()]
+    messages_list = build_message_list(message, messages_multi)
     image_url = (data.get("image_url") or "").strip()
     image_base64 = (data.get("image_base64") or "").strip()
     image_name = (data.get("image_name") or "").strip() or "upload"
@@ -482,7 +605,7 @@ def send_once():
     content_type = (data.get("content_type") or "text").lower()
     if content_type not in ("text", "image"):
         return jsonify({"detail": "content_type must be 'text' or 'image'"}), 400
-    if content_type == "text" and not message:
+    if content_type == "text" and not messages_list:
         return jsonify({"detail": "message is required for text sends"}), 400
     if content_type == "image":
         if image_base64:
@@ -499,23 +622,28 @@ def send_once():
     except Exception:
         return jsonify({"detail": "Invalid session string. Login again to continue."}), 400
 
+    user_info = get_current_user()
+    run_id = str(uuid.uuid4())
     with session_lock, client_connection(session, api_id, api_hash) as client:
         try:
             ensure_authorized(client)
         except AuthKeyUnregisteredError:
             return jsonify({"detail": "Session is not authorized. Use /auth/send-code then /auth/verify to log in."}), 401
         try:
+            if user_info is None:
+                user_info = get_user_from_client(client)
             for tgt in targets:
                 target = resolve_target(client, tgt)
-                send_content(
-                    client,
-                    target,
-                    content_type,
-                    message,
-                    image_url,
-                    image_bytes=image_bytes,
-                    image_name=image_name,
-                )
+                for msg in messages_list:
+                    send_content(
+                        client,
+                        target,
+                        content_type,
+                        msg,
+                        image_url,
+                        image_bytes=image_bytes,
+                        image_name=image_name,
+                    )
             now_ts = time.time()
             with status_lock:
                 status_state.update(
@@ -524,32 +652,67 @@ def send_once():
                         "mode": "once",
                         "started_at": now_ts,
                         "last_sent_at": now_ts,
-                        "sent_count": len(targets),
+                        "sent_count": len(targets) * len(messages_list),
                         "chat_id": ", ".join(targets),
                         "targets": targets,
                         "interval_seconds": None,
                         "content_type": content_type,
-                        "user": status_state.get("user"),
+                        "user": user_info or status_state.get("user"),
                         "next_send_at": None,
+                        "run_id": run_id,
+                        "messages": messages_list,
                     }
                 )
+            upsert_run(
+                run_id,
+                {
+                    "_id": run_id,
+                    "user_id": (user_info or {}).get("id"),
+                    "user": user_info or {},
+                    "targets": targets,
+                    "messages": messages_list,
+                    "message": message,
+                    "image_url": image_url if content_type == "image" else None,
+                    "content_type": content_type,
+                    "interval_seconds": None,
+                    "active": False,
+                    "mode": "once",
+                    "started_at": now_ts,
+                    "last_sent_at": now_ts,
+                    "sent_count": len(targets) * len(messages_list),
+                    "next_send_at": None,
+                },
+            )
         except ValueError as exc:
             return jsonify({"detail": f"Invalid chat id/username: {exc}"}), 400
 
-    return jsonify({"detail": "Message sent once"})
+    return jsonify({"detail": "Message sent once", "run_id": run_id})
 
 
 @app.route("/stop", methods=["POST"])
 def stop():
     global stop_flag
+    run_id = None
     stop_flag = True
     with status_lock:
         status_state["active"] = False
         status_state["mode"] = "stopped"
         status_state["next_send_at"] = None
         status_state["targets"] = []
+        run_id = status_state.get("run_id")
+        status_state["run_id"] = None
     if worker and worker.is_alive():
         worker.join(timeout=2)
+    if run_id:
+        upsert_run(
+            run_id,
+            {
+                "active": False,
+                "mode": "stopped",
+                "stopped_at": time.time(),
+                "next_send_at": None,
+            },
+        )
     return jsonify({"detail": "Auto sender stopped"})
 
 
@@ -570,6 +733,7 @@ def auth_logout():
                 "content_type": None,
                 "next_send_at": None,
                 "targets": [],
+                "run_id": None,
             }
         )
     clear_persisted_session()

@@ -171,6 +171,12 @@
             <textarea name="message" rows="3" required placeholder="Type the text to send"
               class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30"></textarea>
           </label>
+          <label class="space-y-2 text-sm block">
+            <span class="text-muted">Multiple messages (text only)</span>
+            <textarea name="messages_multi" rows="3" placeholder="Each line will send as a separate message in sequence"
+              class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30"></textarea>
+            <span class="text-xs text-muted">Works for text mode. We'll send each non-empty line after the main message above.</span>
+          </label>
 
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
             <button type="submit"
@@ -477,6 +483,7 @@
       data.image_source = data.image_source || "url";
       data.image_url = data.image_url || "";
       data.message = data.message || "";
+      data.messages_multi = data.messages_multi || "";
       data.chat_id = (data.chat_id || "").replace(/\r/g, "\n").trim();
       return data;
     }
@@ -496,7 +503,15 @@
         ...base,
         image_base64: "",
         image_name: "",
+        messages: [],
       };
+      if (base.messages_multi) {
+        payload.messages = base.messages_multi
+          .replace(/\r/g, "\n")
+          .split("\n")
+          .map(function (m) { return m.trim(); })
+          .filter(Boolean);
+      }
 
       if (base.content_type === "image") {
         const usingUpload = (base.image_source || "url") === "upload";
@@ -587,9 +602,12 @@
           return false;
         }
       }
-      if (data.content_type === "text" && !data.message) {
-        setStatus("Message cannot be empty.", "error");
-        return false;
+      if (data.content_type === "text") {
+        const multi = (data.messages_multi || "").trim();
+        if (!data.message && !multi) {
+          setStatus("Add a message or multiple messages (one per line).", "error");
+          return false;
+        }
       }
       return true;
     }
@@ -707,6 +725,9 @@
       const targets = Array.isArray(data.targets) ? data.targets : (data.chat_id ? [data.chat_id] : []);
       renderTargets(targets, data.chat_id ?? "--");
       statusContentType.textContent = data.content_type || "--";
+      if (Array.isArray(data.messages) && data.messages.length) {
+        statusEl.textContent = "Last run is sending multiple messages (" + data.messages.length + ")";
+      }
       lastStatus = data;
       if (data.user) {
         localAuth.user = data.user;
