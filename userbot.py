@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from typing import Any, Dict
 
 from flask import Flask, request, jsonify, send_from_directory
+from pymongo import MongoClient, errors as mongo_errors
 from telethon.errors import (
     AuthKeyUnregisteredError,
     FloodWaitError,
@@ -36,9 +37,11 @@ status_state = {
     "interval_seconds": None,
     "content_type": None,
     "user": None,
+    "next_send_at": None,
 }
 SESSION_STRING_PATH = "session_string.txt"
 saved_session_string = None
+mongo_client = None
 
 
 def ensure_event_loop():
@@ -49,6 +52,44 @@ def ensure_event_loop():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         return loop
+
+
+def get_mongo():
+    global mongo_client
+    mongo_url = os.environ.get("MONGO_URL") or os.environ.get("MONGODB_URI")
+    db_name = os.environ.get("MONGO_DB", "telegramautosend")
+    if not mongo_url:
+        return None, None
+    if mongo_client:
+        return mongo_client[db_name], db_name
+    try:
+        mongo_client = MongoClient(mongo_url, serverSelectionTimeoutMS=2000)
+        mongo_client.admin.command("ping")
+        return mongo_client[db_name], db_name
+    except mongo_errors.PyMongoError:
+        mongo_client = None
+        return None, None
+
+
+def save_settings(data: Dict[str, Any]):
+    db, _ = get_mongo()
+    if not db:
+        return
+    try:
+        db.settings.update_one({"_id": "form"}, {"$set": {"data": data, "updated_at": time.time()}}, upsert=True)
+    except mongo_errors.PyMongoError:
+        pass
+
+
+def load_settings() -> Dict[str, Any]:
+    db, _ = get_mongo()
+    if not db:
+        return {}
+    try:
+        doc = db.settings.find_one({"_id": "form"}) or {}
+        return doc.get("data") or {}
+    except mongo_errors.PyMongoError:
+        return {}
 
 
 def load_saved_session():
@@ -181,6 +222,7 @@ def run_sender(
                     "chat_id": chat_id,
                     "interval_seconds": interval_seconds,
                     "content_type": content_type,
+                    "next_send_at": time.time() + interval_seconds,
                 }
             )
 
@@ -197,10 +239,12 @@ def run_sender(
             with status_lock:
                 status_state["last_sent_at"] = time.time()
                 status_state["sent_count"] += 1
+                status_state["next_send_at"] = time.time() + interval_seconds
             time.sleep(interval_seconds)
     with status_lock:
         status_state["active"] = False
         status_state["mode"] = "stopped"
+        status_state["next_send_at"] = None
 
 
 @app.route("/")
@@ -284,6 +328,20 @@ def start():
     )
     worker.start()
 
+    # Persist settings to DB (non-sensitive fields)
+    save_settings(
+        {
+            "api_id": api_id,
+            "api_hash": api_hash,
+            "session_string": session_string,
+            "chat_id": chat_id,
+            "message": message,
+            "interval_seconds": interval_seconds,
+            "content_type": content_type,
+            "image_url": image_url,
+        }
+    )
+
     return jsonify({"detail": "Auto sender started"})
 
 
@@ -351,6 +409,7 @@ def send_once():
                         "interval_seconds": None,
                         "content_type": content_type,
                         "user": status_state.get("user"),
+                        "next_send_at": None,
                     }
                 )
         except ValueError as exc:
@@ -366,6 +425,7 @@ def stop():
     with status_lock:
         status_state["active"] = False
         status_state["mode"] = "stopped"
+        status_state["next_send_at"] = None
     if worker and worker.is_alive():
         worker.join(timeout=2)
     return jsonify({"detail": "Auto sender stopped"})
@@ -386,6 +446,7 @@ def auth_logout():
                 "chat_id": None,
                 "interval_seconds": None,
                 "content_type": None,
+                "next_send_at": None,
             }
         )
     try:
@@ -483,6 +544,15 @@ def auth_verify():
 def status():
     with status_lock:
         return jsonify(status_state)
+
+
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    if request.method == "GET":
+        return jsonify(load_settings())
+    data = request.get_json() or {}
+    save_settings(data)
+    return jsonify({"detail": "Settings saved"})
 
 
 if __name__ == "__main__":

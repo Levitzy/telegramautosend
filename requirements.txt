@@ -2,3 +2,4 @@ Flask
 flask-cors
 telethon
 python-dotenv
+pymongo

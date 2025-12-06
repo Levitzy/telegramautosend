@@ -224,6 +224,15 @@
               <dd id="statusContentType" class="text-accent break-all">--</dd>
             </div>
           </dl>
+          <div class="space-y-2 pt-2">
+            <div class="flex items-center justify-between text-xs text-muted">
+              <span>Next send in</span>
+              <span id="countdownLabel" class="text-accent font-semibold">--</span>
+            </div>
+            <div class="w-full bg-border rounded-full h-2 overflow-hidden">
+              <div id="countdownBar" class="h-2 bg-accent/70 transition-[width] duration-200 ease-linear" style="width:0%;"></div>
+            </div>
+          </div>
           <p id="status" class="text-sm text-accent">Idle</p>
         </div>
 
@@ -407,26 +416,30 @@
       return payload;
     }
 
-    const STORAGE_KEY = "autoSenderForm";
-    function saveForm(data) {
+    async function saveSettings(data) {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        await fetch("/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
         setStatus("Inputs saved", "success");
       } catch (err) {
         setStatus("Could not save inputs", "error");
       }
     }
 
-    function loadForm() {
+    async function loadSettings() {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return;
-        const saved = JSON.parse(raw);
-        Object.keys(saved).forEach(function (key) {
-          if (form.elements[key] !== undefined && saved[key] !== undefined) {
-            form.elements[key].value = saved[key];
+        const res = await fetch("/settings");
+        if (!res.ok) return;
+        const data = await res.json();
+        Object.keys(data).forEach(function (key) {
+          if (form.elements[key] !== undefined && data[key] !== undefined) {
+            form.elements[key].value = data[key];
           }
         });
+        syncContentFields();
       } catch (err) {
         // ignore load errors
       }
@@ -483,6 +496,26 @@
       contentTypeInput.value = value;
       syncContentFields();
       closeContentMenu();
+    }
+
+    let lastStatus = null;
+    function updateCountdown() {
+      if (!lastStatus || !lastStatus.active || !lastStatus.interval_seconds) {
+        countdownLabel.textContent = "--";
+        countdownBar.style.width = "0%";
+        return;
+      }
+      const now = Date.now() / 1000;
+      const next = lastStatus.next_send_at;
+      if (!next) {
+        countdownLabel.textContent = "--";
+        countdownBar.style.width = "0%";
+        return;
+      }
+      const remaining = Math.max(0, next - now);
+      const pct = Math.min(100, Math.max(0, ((lastStatus.interval_seconds - remaining) / lastStatus.interval_seconds) * 100));
+      countdownLabel.textContent = remaining.toFixed(1) + "s";
+      countdownBar.style.width = pct + "%";
     }
 
     function openAuthModalDialog() {
@@ -543,6 +576,7 @@
       statusInterval.textContent = data.interval_seconds ?? "--";
       statusTarget.textContent = data.chat_id ?? "--";
       statusContentType.textContent = data.content_type || "--";
+      lastStatus = data;
       if (data.user && data.user.name) {
         userBadge.textContent = "Welcome, " + data.user.name;
         userBadge.className =
@@ -595,10 +629,19 @@
 
     saveButton.addEventListener("click", function () {
       const data = collectFormValues();
-      saveForm(data);
+      saveSettings(data);
     });
 
     refreshStatus.addEventListener("click", fetchStatus);
+    authActionButton.addEventListener("click", function () {
+      if (authActionButton.textContent.includes("Sign out")) {
+        postJSON("/auth/logout", {}, "Signed out").then(function () {
+          fetchStatus();
+        });
+      } else {
+        openAuthModalDialog();
+      }
+    });
     contentTypeButton.addEventListener("click", function (e) {
       e.stopPropagation();
       const isHidden = contentTypeMenu.classList.contains("hidden");
@@ -617,15 +660,6 @@
     document.addEventListener("click", function (e) {
       if (!contentTypeMenu.contains(e.target) && !contentTypeButton.contains(e.target)) {
         closeContentMenu();
-      }
-    });
-    authActionButton.addEventListener("click", function () {
-      if (authActionButton.textContent.includes("Sign out")) {
-        postJSON("/auth/logout", {}, "Signed out").then(function () {
-          fetchStatus();
-        });
-      } else {
-        openAuthModalDialog();
       }
     });
     authOverlay.addEventListener("click", closeAuthModalDialog);
@@ -675,7 +709,7 @@
         if (res.session_string) {
           form.elements["session_string"].value = res.session_string;
           const updated = collectFormValues();
-          saveForm(updated);
+          saveSettings(updated);
         }
         setAuthStatus(res.detail || "Authorized. Session saved above.", "success");
       }).catch(function (err) {
@@ -685,10 +719,11 @@
       });
     });
     imageSourceSelect.addEventListener("change", syncContentFields);
-    loadForm();
+    loadSettings();
     syncContentFields();
     fetchStatus();
     setInterval(fetchStatus, 5000);
+    setInterval(updateCountdown, 500);
 
   </script>
 </body>
