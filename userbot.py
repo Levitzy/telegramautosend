@@ -25,7 +25,6 @@ from telethon.sync import TelegramClient
 
 app = Flask(__name__)
 
-stop_flag = False
 worker = None
 status_lock = threading.Lock()
 session_lock = threading.Lock()
@@ -44,10 +43,13 @@ status_state = {
     "targets": [],
     "run_id": None,
     "messages": [],
+    "active_runs": 0,
 }
 SESSION_STRING_PATH = "session_string.txt"
 saved_session_string = None
 mongo_client = None
+run_registry: Dict[str, Dict[str, Any]] = {}
+run_statuses: Dict[str, Dict[str, Any]] = {}
 
 
 def ensure_event_loop():
@@ -371,8 +373,8 @@ def run_sender(
     image_name,
     run_id: str | None,
     user_info: Dict[str, Any] | None,
+    stop_event: threading.Event,
 ):
-    global stop_flag
     ensure_event_loop()
     if not session_string:
         with status_lock:
@@ -392,7 +394,7 @@ def run_sender(
             resolved_targets = [resolve_target(client, t) for t in targets]
         except ValueError as exc:
             # Abort the loop if target cannot be resolved.
-            stop_flag = True
+            stop_event.set()
             print(f"Failed to resolve target: {exc}")
             return
 
@@ -412,8 +414,11 @@ def run_sender(
                     "run_id": run_id,
                     "user": user_info or status_state.get("user"),
                     "messages": messages,
+                    "active_runs": len(run_registry),
                 }
             )
+            if run_id:
+                run_statuses[run_id] = dict(status_state)
         if run_id:
             upsert_run(
                 run_id,
@@ -435,7 +440,7 @@ def run_sender(
                 },
             )
 
-        while not stop_flag:
+        while not stop_event.is_set():
             for idx, target in enumerate(resolved_targets):
                 for msg in messages:
                     try:
@@ -453,6 +458,7 @@ def run_sender(
                             status_state["sent_count"] += 1
                             status_state["chat_id"] = targets[idx]
                             status_state["user"] = user_info or status_state.get("user")
+                            status_state["active_runs"] = len(run_registry)
                     except Exception as exc:
                         print(f"Failed to send to {targets[idx]}: {exc}")
                         continue
@@ -461,6 +467,8 @@ def run_sender(
                 now_next = status_state["next_send_at"]
                 now_last = status_state["last_sent_at"]
                 now_sent = status_state["sent_count"]
+                if run_id:
+                    run_statuses[run_id] = dict(status_state)
             if run_id:
                 upsert_run(
                     run_id,
@@ -478,6 +486,11 @@ def run_sender(
         status_state["mode"] = "stopped"
         status_state["next_send_at"] = None
         status_state["run_id"] = None
+        status_state["active_runs"] = max(len(run_registry) - 1, 0)
+        if run_id:
+            run_statuses[run_id] = dict(status_state)
+    with status_lock:
+        run_registry.pop(run_id, None)
     if run_id:
         upsert_run(
             run_id,
@@ -497,15 +510,7 @@ def index():
 
 @app.route("/start", methods=["POST"])
 def start():
-    global stop_flag, worker
     data = request.get_json()
-
-    # If a run is in progress, stop it first to allow back-to-back requests.
-    if status_state.get("active"):
-        stop_flag = True
-        if worker and worker.is_alive():
-            worker.join(timeout=2)
-        stop_flag = False
 
     api_id = int(data["api_id"])
     api_hash = data["api_hash"]
@@ -565,12 +570,8 @@ def start():
     run_id = str(uuid.uuid4())
     with status_lock:
         status_state["run_id"] = run_id
-    stop_flag = True
-    if worker and worker.is_alive():
-        worker.join(timeout=2)
-
-    stop_flag = False
-    worker = threading.Thread(
+    stop_event = threading.Event()
+    worker_thread = threading.Thread(
         target=run_sender,
         args=(
             api_id,
@@ -585,10 +586,14 @@ def start():
             image_name,
             run_id,
             user_info,
+            stop_event,
         ),
         daemon=True,
     )
-    worker.start()
+    with status_lock:
+        run_registry[run_id] = {"thread": worker_thread, "stop_event": stop_event}
+        status_state["active_runs"] = len(run_registry)
+    worker_thread.start()
 
     # Persist settings to DB (non-sensitive fields)
     save_settings(
@@ -690,8 +695,10 @@ def send_once():
                         "next_send_at": None,
                         "run_id": run_id,
                         "messages": messages_list,
+                        "active_runs": len(run_registry),
                     }
                 )
+                run_statuses[run_id] = dict(status_state)
             upsert_run(
                 run_id,
                 {
@@ -720,21 +727,32 @@ def send_once():
 
 @app.route("/stop", methods=["POST"])
 def stop():
-    global stop_flag
-    run_id = None
-    stop_flag = True
+    stopped_ids = []
     with status_lock:
-        status_state["active"] = False
-        status_state["mode"] = "stopped"
-        status_state["next_send_at"] = None
-        status_state["targets"] = []
-        run_id = status_state.get("run_id")
-        status_state["run_id"] = None
-    if worker and worker.is_alive():
-        worker.join(timeout=2)
-    if run_id:
+        registry_items = list(run_registry.items())
+    for run_id, meta in registry_items:
+        evt = meta.get("stop_event")
+        th = meta.get("thread")
+        if evt:
+            evt.set()
+        if th and th.is_alive():
+            th.join(timeout=2)
+        stopped_ids.append(run_id)
+    with status_lock:
+        run_registry.clear()
+        status_state.update(
+            {
+                "active": False,
+                "mode": "stopped",
+                "next_send_at": None,
+                "targets": [],
+                "run_id": None,
+                "active_runs": 0,
+            }
+        )
+    for rid in stopped_ids:
         upsert_run(
-            run_id,
+            rid,
             {
                 "active": False,
                 "mode": "stopped",
@@ -742,7 +760,11 @@ def stop():
                 "next_send_at": None,
             },
         )
-    return jsonify({"detail": "Auto sender stopped"})
+    with status_lock:
+        for rid in stopped_ids:
+            if rid in run_statuses:
+                run_statuses[rid].update({"active": False, "mode": "stopped", "next_send_at": None})
+    return jsonify({"detail": "All runs stopped", "run_ids": stopped_ids})
 
 
 @app.route("/runs", methods=["GET"])
@@ -754,20 +776,30 @@ def runs():
 @app.route("/runs/<run_id>/stop", methods=["POST"])
 def stop_run(run_id: str):
     """Stop a specific run by id."""
-    global stop_flag
     is_current = False
     with status_lock:
-        is_current = status_state.get("run_id") == run_id and status_state.get("active")
-    if is_current:
-        stop_flag = True
-        if worker and worker.is_alive():
-            worker.join(timeout=2)
+        meta = run_registry.get(run_id)
+        is_current = meta is not None
+    if is_current and meta:
+        evt = meta.get("stop_event")
+        th = meta.get("thread")
+        if evt:
+            evt.set()
+        if th and th.is_alive():
+            th.join(timeout=2)
         with status_lock:
-            status_state["active"] = False
-            status_state["mode"] = "stopped"
-            status_state["next_send_at"] = None
-            status_state["targets"] = []
-            status_state["run_id"] = None
+            run_registry.pop(run_id, None)
+            status_state["active_runs"] = len(run_registry)
+            if status_state.get("run_id") == run_id:
+                status_state.update(
+                    {
+                        "active": False,
+                        "mode": "stopped",
+                        "next_send_at": None,
+                        "targets": [],
+                        "run_id": None,
+                    }
+                )
     upsert_run(
         run_id,
         {
@@ -777,6 +809,15 @@ def stop_run(run_id: str):
             "next_send_at": None,
         },
     )
+    with status_lock:
+        if run_id in run_statuses:
+            run_statuses[run_id].update(
+                {
+                    "active": False,
+                    "mode": "stopped",
+                    "next_send_at": None,
+                }
+            )
     return jsonify({"detail": "Run stopped", "run_id": run_id})
 
 
@@ -898,7 +939,16 @@ def auth_session():
 @app.route("/status", methods=["GET"])
 def status():
     with status_lock:
-        return jsonify(status_state)
+        snapshot = dict(status_state)
+        active_runs = len(run_registry)
+        snapshot["active_runs"] = active_runs
+        if active_runs > 0:
+            snapshot["active"] = True
+            if active_runs > 1:
+                snapshot["mode"] = "multi"
+        recent = list(run_statuses.values())
+    snapshot["runs"] = recent
+    return jsonify(snapshot)
 
 
 @app.route("/settings", methods=["GET", "POST"])
