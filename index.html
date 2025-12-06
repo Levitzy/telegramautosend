@@ -259,6 +259,21 @@
           <p id="status" class="text-sm text-accent">Idle</p>
         </div>
 
+        <div class="bg-panel border border-border rounded-3xl p-6 space-y-3 shadow-xl shadow-black/10">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="font-semibold text-accent">Runs</p>
+              <p class="text-xs text-muted">Recent runs with stop control</p>
+            </div>
+            <button id="refreshRuns" type="button"
+              class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-accent hover:border-brand/60 transition focus:outline-none focus:ring-2 focus:ring-brand/20">
+              Refresh
+            </button>
+          </div>
+          <div id="runsList" class="space-y-2"></div>
+          <p id="runsStatus" class="text-xs text-muted"></p>
+        </div>
+
         <div class="bg-panel border border-border rounded-3xl p-6 space-y-3 text-sm text-muted shadow-xl shadow-black/10">
           <p class="font-semibold text-accent">Usage</p>
           <ul class="list-disc list-inside space-y-1">
@@ -364,6 +379,9 @@
     const authVerifyBtn = document.getElementById("authVerifyBtn");
     const authStatus = document.getElementById("authStatus");
     const userBadge = document.getElementById("userBadge");
+    const runsList = document.getElementById("runsList");
+    const refreshRuns = document.getElementById("refreshRuns");
+    const runsStatus = document.getElementById("runsStatus");
     const LOCAL_AUTH_KEY = "telegram-auto-sender:auth";
     let localAuth = { session_string: "", user: null };
 
@@ -709,6 +727,64 @@
       statusTarget.textContent = fallbackText || items.join(", ");
     }
 
+    function renderRuns(runs) {
+        runsList.innerHTML = "";
+        if (!runs || runs.length === 0) {
+          runsList.innerHTML = '<p class="text-xs text-muted">No recent runs.</p>';
+          return;
+        }
+        runs.forEach(function (run) {
+          const card = document.createElement("div");
+          const active = Boolean(run.active);
+          card.className = "flex items-start justify-between gap-2 rounded-xl border border-border px-3 py-2";
+          const left = document.createElement("div");
+          left.className = "space-y-1";
+          const title = document.createElement("p");
+          title.className = "text-sm font-semibold text-accent";
+          title.textContent = (run.mode || "run").toUpperCase() + " - " + (run.id || "").slice(0, 8);
+          const meta = document.createElement("p");
+          meta.className = "text-xs text-muted";
+          const targetCount = Array.isArray(run.targets) ? run.targets.length : 0;
+          const msgCount = run.messages_count || 0;
+          meta.textContent =
+            (run.active ? "Active" : "Stopped") +
+            " - targets: " + targetCount +
+            " - sent: " + (run.sent_count || 0) +
+            (msgCount ? " - msgs: " + msgCount : "");
+          left.appendChild(title);
+          left.appendChild(meta);
+          const right = document.createElement("div");
+          right.className = "flex items-center gap-2";
+          const badge = document.createElement("span");
+          badge.className =
+            "text-xs font-semibold px-2 py-1 rounded-full " +
+            (active ? "bg-emerald-100 text-emerald-700" : "bg-surface text-muted border border-border");
+          badge.textContent = active ? "Running" : "Stopped";
+          right.appendChild(badge);
+          if (active) {
+            const btn = document.createElement("button");
+            btn.textContent = "Stop";
+            btn.className =
+              "text-xs font-semibold px-3 py-1 rounded-full border border-red-200 text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200";
+            btn.addEventListener("click", function () {
+              stopRun(run.id);
+            });
+            right.appendChild(btn);
+          }
+          card.appendChild(left);
+          card.appendChild(right);
+          runsList.appendChild(card);
+        });
+    }
+
+    function stopRun(runId) {
+      if (!runId) return;
+      postJSON("/runs/" + runId + "/stop", {}, "Stopped run").then(function () {
+        fetchStatus();
+        fetchRuns();
+      }).catch(function () { /* handled by postJSON */ });
+    }
+
     function renderStatus(data) {
       const active = Boolean(data.active);
       statusBadge.textContent = active ? "Active" : "Idle";
@@ -739,6 +815,13 @@
       fetch("/status")
         .then(function (res) { return res.json(); })
         .then(function (data) { renderStatus(data); })
+        .catch(function () { /* ignore */ });
+    }
+
+    function fetchRuns() {
+      fetch("/runs")
+        .then(function (res) { return res.json(); })
+        .then(function (data) { renderRuns(data.runs || []); })
         .catch(function () { /* ignore */ });
     }
 
@@ -796,6 +879,7 @@
     });
 
     refreshStatus.addEventListener("click", fetchStatus);
+    refreshRuns.addEventListener("click", fetchRuns);
     authActionButton.addEventListener("click", function () {
       if (authActionButton.textContent.includes("Sign out")) {
         postJSON("/auth/logout", {}, "Signed out").then(function () {
@@ -891,7 +975,9 @@
     loadSettings();
     syncContentFields();
     fetchStatus();
+    fetchRuns();
     setInterval(fetchStatus, 5000);
+    setInterval(fetchRuns, 6000);
     setInterval(updateCountdown, 500);
 
   </script>

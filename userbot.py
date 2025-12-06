@@ -77,6 +77,35 @@ def get_mongo():
         return None, None
 
 
+def list_runs(limit: int = 15):
+    """Return recent runs from DB."""
+    db, _ = get_mongo()
+    if db is None:
+        return []
+    try:
+        cursor = db.runs.find().sort("started_at", -1).limit(limit)
+        runs = []
+        for doc in cursor:
+            runs.append(
+                {
+                    "id": doc.get("_id"),
+                    "active": bool(doc.get("active")),
+                    "mode": doc.get("mode"),
+                    "started_at": doc.get("started_at"),
+                    "last_sent_at": doc.get("last_sent_at"),
+                    "sent_count": doc.get("sent_count", 0),
+                    "targets": doc.get("targets") or [],
+                    "content_type": doc.get("content_type"),
+                    "interval_seconds": doc.get("interval_seconds"),
+                    "next_send_at": doc.get("next_send_at"),
+                    "messages_count": len(doc.get("messages") or []),
+                }
+            )
+        return runs
+    except mongo_errors.PyMongoError:
+        return []
+
+
 def save_settings(data: Dict[str, Any]):
     db, _ = get_mongo()
     if db is None:
@@ -714,6 +743,41 @@ def stop():
             },
         )
     return jsonify({"detail": "Auto sender stopped"})
+
+
+@app.route("/runs", methods=["GET"])
+def runs():
+    """List recent runs."""
+    return jsonify({"runs": list_runs()})
+
+
+@app.route("/runs/<run_id>/stop", methods=["POST"])
+def stop_run(run_id: str):
+    """Stop a specific run by id."""
+    global stop_flag
+    is_current = False
+    with status_lock:
+        is_current = status_state.get("run_id") == run_id and status_state.get("active")
+    if is_current:
+        stop_flag = True
+        if worker and worker.is_alive():
+            worker.join(timeout=2)
+        with status_lock:
+            status_state["active"] = False
+            status_state["mode"] = "stopped"
+            status_state["next_send_at"] = None
+            status_state["targets"] = []
+            status_state["run_id"] = None
+    upsert_run(
+        run_id,
+        {
+            "active": False,
+            "mode": "stopped",
+            "stopped_at": time.time(),
+            "next_send_at": None,
+        },
+    )
+    return jsonify({"detail": "Run stopped", "run_id": run_id})
 
 
 @app.route("/auth/logout", methods=["POST"])
