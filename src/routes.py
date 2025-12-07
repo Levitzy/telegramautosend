@@ -295,7 +295,9 @@ def stop():
 @bp.route("/runs", methods=["GET"])
 def runs():
     """List recent runs."""
-    return jsonify({"runs": db.list_runs()})
+    user = bot.get_current_user()
+    user_id = user.get("id") if user else None
+    return jsonify({"runs": db.list_runs(user_id=user_id)})
 
 @bp.route("/runs/<run_id>/stop", methods=["POST"])
 def stop_run(run_id: str):

@@ -21,18 +21,31 @@ def get_mongo():
         g.mongo_client = None
         return None, None
 
-def list_runs(limit: int = 15):
+def list_runs(limit: int = 15, user_id: int = None):
     """Return recent runs, merging DB and in-memory snapshots."""
+    if user_id is None:
+        return []
+
     merged: Dict[str, Dict[str, Any]] = {}
     db, _ = get_mongo()
     if db is not None:
         try:
-            cursor = db.runs.find().sort("started_at", -1).limit(limit)
+            cursor = db.runs.find({"user_id": user_id}).sort("started_at", -1).limit(limit)
             for doc in cursor:
+                active = bool(doc.get("active"))
+                mode = doc.get("mode")
+                if active:
+                    status = "Running"
+                elif mode == "once":
+                    status = "Completed"
+                else:
+                    status = "Stopped"
+
                 merged[str(doc.get("_id"))] = {
                     "id": doc.get("_id"),
-                    "active": bool(doc.get("active")),
-                    "mode": doc.get("mode"),
+                    "active": active,
+                    "mode": mode,
+                    "status": status,
                     "started_at": doc.get("started_at"),
                     "last_sent_at": doc.get("last_sent_at"),
                     "sent_count": doc.get("sent_count", 0),
@@ -46,12 +59,27 @@ def list_runs(limit: int = 15):
             pass
     with g.status_lock:
         for rid, snap in g.run_statuses.items():
+            # Check ownership
+            snap_user = snap.get("user") or {}
+            if snap_user.get("id") != user_id:
+                continue
+
+            active = snap.get("active")
+            mode = snap.get("mode")
+            if active:
+                status = "Running"
+            elif mode == "once":
+                status = "Completed"
+            else:
+                status = "Stopped"
+
             merged.setdefault(
                 rid,
                 {
                     "id": rid,
-                    "active": snap.get("active"),
-                    "mode": snap.get("mode"),
+                    "active": active,
+                    "mode": mode,
+                    "status": status,
                     "started_at": snap.get("started_at"),
                     "last_sent_at": snap.get("last_sent_at"),
                     "sent_count": snap.get("sent_count"),
