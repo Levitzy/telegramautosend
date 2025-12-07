@@ -105,7 +105,50 @@ def run_sender(
     run_id: str | None,
     user_info: Dict[str, Any] | None,
     stop_event: threading.Event,
+    pause_event: threading.Event | None = None,
 ):
+    def wait_until_next_send(next_send_at: float) -> bool:
+        """Sleep until the next send, freezing the countdown when paused."""
+        while not stop_event.is_set():
+            remaining = max(0.0, next_send_at - time.time())
+            if remaining <= 0:
+                return True
+
+            if pause_event and pause_event.is_set():
+                with g.status_lock:
+                    g.status_state["mode"] = "paused"
+                    g.status_state["next_send_at"] = None
+                    if run_id:
+                        snap = g.run_statuses.get(run_id, {})
+                        snap.update({"mode": "paused", "next_send_at": None})
+                        g.run_statuses[run_id] = snap
+                if run_id:
+                    db.upsert_run(run_id, {"mode": "paused", "active": True, "next_send_at": None})
+
+                while pause_event.is_set() and not stop_event.is_set():
+                    if stop_event.wait(timeout=0.5):
+                        break
+
+                if stop_event.is_set():
+                    return False
+
+                next_send_at = time.time() + remaining
+                with g.status_lock:
+                    g.status_state["mode"] = "loop"
+                    g.status_state["next_send_at"] = next_send_at
+                    if run_id:
+                        snap = g.run_statuses.get(run_id, {})
+                        snap.update({"mode": "loop", "next_send_at": next_send_at})
+                        g.run_statuses[run_id] = snap
+                if run_id:
+                    db.upsert_run(run_id, {"mode": "loop", "active": True, "next_send_at": next_send_at})
+                continue
+
+            sleep_for = min(0.5, remaining)
+            if stop_event.wait(timeout=sleep_for):
+                return False
+        return False
+
     utils.ensure_event_loop()
     if not session_string:
         with g.status_lock:
@@ -172,6 +215,33 @@ def run_sender(
             )
 
         while not stop_event.is_set():
+            if pause_event and pause_event.is_set():
+                with g.status_lock:
+                    g.status_state["mode"] = "paused"
+                    g.status_state["next_send_at"] = None
+                    if run_id:
+                        snap = g.run_statuses.get(run_id, {})
+                        snap.update({"mode": "paused", "next_send_at": None})
+                        g.run_statuses[run_id] = snap
+                if run_id:
+                    db.upsert_run(run_id, {"mode": "paused", "active": True, "next_send_at": None})
+                while pause_event.is_set() and not stop_event.is_set():
+                    if stop_event.wait(timeout=0.5):
+                        break
+                if stop_event.is_set():
+                    break
+                with g.status_lock:
+                    g.status_state["mode"] = "loop"
+                    if run_id:
+                        snap = g.run_statuses.get(run_id, {})
+                        snap["mode"] = "loop"
+                        g.run_statuses[run_id] = snap
+                if run_id:
+                    db.upsert_run(run_id, {"mode": "loop", "active": True})
+
+            if stop_event.is_set():
+                break
+
             for idx, target in enumerate(resolved_targets):
                 for msg in messages:
                     try:
@@ -193,8 +263,9 @@ def run_sender(
                     except Exception as exc:
                         print(f"Failed to send to {targets[idx]}: {exc}")
                         continue
+            next_send_at = time.time() + interval_seconds
             with g.status_lock:
-                g.status_state["next_send_at"] = time.time() + interval_seconds
+                g.status_state["next_send_at"] = next_send_at
                 now_next = g.status_state["next_send_at"]
                 now_last = g.status_state["last_sent_at"]
                 now_sent = g.status_state["sent_count"]
@@ -211,7 +282,8 @@ def run_sender(
                         "mode": "loop",
                     },
                 )
-            time.sleep(interval_seconds)
+            if not wait_until_next_send(next_send_at):
+                break
     with g.status_lock:
         g.status_state["active"] = False
         g.status_state["mode"] = "stopped"

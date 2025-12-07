@@ -102,6 +102,7 @@ def start():
             "active_runs": len(g.run_registry) + 1,
         }
     stop_event = threading.Event()
+    pause_event = threading.Event()
     worker_thread = threading.Thread(
         target=bot.run_sender,
         args=(
@@ -118,11 +119,12 @@ def start():
             run_id,
             user_info,
             stop_event,
+            pause_event,
         ),
         daemon=True,
     )
     with g.status_lock:
-        g.run_registry[run_id] = {"thread": worker_thread, "stop_event": stop_event}
+        g.run_registry[run_id] = {"thread": worker_thread, "stop_event": stop_event, "pause_event": pause_event}
         g.status_state["active_runs"] = len(g.run_registry)
     worker_thread.start()
 
@@ -345,6 +347,50 @@ def stop_run(run_id: str):
                 }
             )
     return jsonify({"detail": "Run stopped", "run_id": run_id})
+
+@bp.route("/runs/<run_id>/pause", methods=["POST"])
+def pause_run(run_id: str):
+    """Pause a specific run by id."""
+    with g.status_lock:
+        meta = g.run_registry.get(run_id)
+        if not meta:
+            # Thread not found. If it's in DB as active, mark it stopped.
+            db.upsert_run(
+                run_id,
+                {
+                    "active": False,
+                    "mode": "stopped",
+                    "stopped_at": time.time(),
+                    "next_send_at": None,
+                },
+            )
+            return jsonify({"detail": "Run process not found. Marked as stopped."}), 404
+        evt = meta.get("pause_event")
+        if evt:
+            evt.set()
+    return jsonify({"detail": "Run paused", "run_id": run_id})
+
+@bp.route("/runs/<run_id>/resume", methods=["POST"])
+def resume_run(run_id: str):
+    """Resume a specific run by id."""
+    with g.status_lock:
+        meta = g.run_registry.get(run_id)
+        if not meta:
+             # Thread not found.
+            db.upsert_run(
+                run_id,
+                {
+                    "active": False,
+                    "mode": "stopped",
+                    "stopped_at": time.time(),
+                    "next_send_at": None,
+                },
+            )
+            return jsonify({"detail": "Run process not found. Marked as stopped."}), 404
+        evt = meta.get("pause_event")
+        if evt:
+            evt.clear()
+    return jsonify({"detail": "Run resumed", "run_id": run_id})
 
 @bp.route("/auth/logout", methods=["POST"])
 def auth_logout():

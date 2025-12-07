@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
   <title>Telegram Auto Sender</title>
@@ -7,338 +7,430 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           colors: {
-            surface: "#edf2ff",
-            panel: "#ffffff",
-            border: "#e5e7eb",
-            accent: "#0f172a",
-            brand: "#0ea5e9",
-            muted: "#64748b"
+            surface: "var(--color-surface)",
+            panel: "var(--color-panel)",
+            border: "var(--color-border)",
+            input: "var(--color-input)",
+            accent: "var(--color-accent)",
+            muted: "var(--color-muted)",
+            brand: "var(--color-brand)",
+            "brand-glow": "var(--color-brand-glow)",
           },
           fontFamily: {
-            sans: ["Geist", "Inter", "system-ui", "sans-serif"]
+            sans: ["Geist", "Inter", "system-ui", "sans-serif"],
+            mono: ["Geist Mono", "Fira Code", "monospace"],
+          },
+          animation: {
+            'blob': 'blob 7s infinite',
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          },
+          keyframes: {
+            blob: {
+              '0%': { transform: 'translate(0px, 0px) scale(1)' },
+              '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+              '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+              '100%': { transform: 'translate(0px, 0px) scale(1)' },
+            }
           }
         }
       }
     };
   </script>
   <style>
+    :root {
+      --color-surface: #ffffff;
+      --color-panel: #f8fafc;
+      --color-border: #e2e8f0;
+      --color-input: #f1f5f9;
+      --color-accent: #0f172a;
+      --color-muted: #64748b;
+      --color-brand: #06b6d4;
+      --color-brand-glow: #22d3ee;
+      --glass-bg: rgba(255, 255, 255, 0.7);
+      --glass-border: rgba(226, 232, 240, 0.7);
+    }
+    .dark {
+      --color-surface: #020617;
+      --color-panel: #0f172a;
+      --color-border: #1e293b;
+      --color-input: #1e293b;
+      --color-accent: #f1f5f9;
+      --color-muted: #94a3b8;
+      --color-brand: #06b6d4;
+      --color-brand-glow: #22d3ee;
+      --glass-bg: rgba(15, 23, 42, 0.6);
+      --glass-border: rgba(30, 41, 59, 0.7);
+    }
     @font-face {
       font-family: "Geist";
       src: url("https://assets.vercel.com/raw/upload/v1676297961/fonts/geist/Geist-Variable.woff2") format("woff2");
       font-weight: 100 900;
       font-display: swap;
     }
+    @font-face {
+      font-family: "Geist Mono";
+      src: url("https://assets.vercel.com/raw/upload/v1676297961/fonts/geist-mono/GeistMono-Variable.woff2") format("woff2");
+      font-weight: 100 900;
+      font-display: swap;
+    }
     body {
       font-family: "Geist", "Inter", system-ui, sans-serif;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    .glass-panel {
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+    }
+    .tech-border {
+      box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.1), 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--color-surface); 
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--color-border); 
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--color-muted); 
     }
   </style>
 </head>
-<body class="min-h-screen relative overflow-x-hidden text-slate-900 bg-gradient-to-br from-slate-50 via-white to-sky-50">
-  <div class="pointer-events-none absolute inset-0">
-    <div class="absolute -left-10 top-10 h-52 w-52 rounded-full bg-brand/10 blur-3xl"></div>
-    <div class="absolute -right-24 top-16 h-64 w-64 rounded-full bg-amber-200/40 blur-3xl"></div>
-    <div class="absolute left-1/3 -bottom-10 h-40 w-72 rotate-6 bg-gradient-to-r from-brand/20 via-white to-indigo-100 blur-3xl rounded-full"></div>
+<body class="min-h-screen relative overflow-x-hidden text-accent bg-surface selection:bg-brand selection:text-white">
+  
+  <!-- Ambient Background -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden">
+    <div class="absolute top-0 left-1/4 w-96 h-96 bg-brand/10 rounded-full mix-blend-screen filter blur-[100px] opacity-30 animate-blob"></div>
+    <div class="absolute top-0 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full mix-blend-screen filter blur-[100px] opacity-30 animate-blob animation-delay-2000"></div>
+    <div class="absolute -bottom-32 left-1/3 w-96 h-96 bg-indigo-500/10 rounded-full mix-blend-screen filter blur-[100px] opacity-30 animate-blob animation-delay-4000"></div>
+    <!-- Grid Pattern -->
+    <div class="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-[0.15]"></div>
   </div>
 
-  <div class="relative max-w-6xl mx-auto p-4 md:p-8 lg:p-10 space-y-6">
-    <header class="bg-panel/80 backdrop-blur border border-border rounded-3xl shadow-xl shadow-black/10 p-5 md:p-6 lg:p-8 space-y-5">
-      <div class="flex flex-wrap items-center gap-3 justify-between">
-        <div class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs uppercase tracking-[0.2em] text-muted bg-white shadow-sm shadow-black/5">
-          Personal tool
-          <span class="inline-flex h-2 w-2 rounded-full bg-brand animate-pulse"></span>
+  <div class="relative max-w-7xl mx-auto p-4 md:p-6 lg:p-8 space-y-6">    
+    <!-- Header -->
+    <header class="glass-panel rounded-2xl p-6 lg:p-8 relative overflow-hidden group">
+      <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-brand to-purple-500"></div>
+      <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 relative z-10">
+        <div class="space-y-3">
+          <div class="flex items-center gap-3">
+             <div class="inline-flex items-center gap-2 rounded-full border border-brand/20 px-3 py-1 text-xs font-mono uppercase tracking-wider text-brand bg-brand/5">
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-brand"></span>
+              </span>
+              v2.0.0
+            </div>
+            <div id="userBadge" class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-border/50 border border-white/5 text-xs text-muted backdrop-blur-sm transition-colors hover:border-brand/30 hover:text-accent cursor-default">
+              <span class="h-1.5 w-1.5 rounded-full bg-muted"></span>
+              <span>Not Connected</span>
+            </div>
+          </div>
+          <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-accent">
+            Telegram <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand to-purple-400">Auto Sender</span>
+          </h1>
+          <p class="text-muted max-w-2xl text-base md:text-lg">
+            High-performance automation suite for Telegram. Execute scheduled broadcasts, manage sessions securely, and target multiple channels with precision.
+          </p>
         </div>
-        <div class="flex items-center gap-2 text-sm text-muted">
-          <span id="userBadge" class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-border shadow-md">
-            <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span class="text-accent">Ready</span>
-          </span>
-          <button id="authActionButton"
-            class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent text-white font-semibold shadow-md shadow-black/10 hover:bg-accent/90 transition focus:outline-none focus:ring-2 focus:ring-brand/30">
-            Login / Get session
+        
+        <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+             <button id="themeToggle" class="group relative inline-flex items-center justify-center p-3 rounded-xl bg-brand/5 border border-brand/10 text-brand hover:bg-brand/10 transition-all duration-300">
+                <svg id="themeIconSun" class="w-5 h-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                <svg id="themeIconMoon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+             </button>
+             <button id="authActionButton"
+            class="group relative inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-brand/10 hover:bg-brand/20 border border-brand/20 text-brand font-medium transition-all duration-300 overflow-hidden">
+            <span class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-brand/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out"></span>
+            <span class="relative flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
+                Connect Account
+            </span>
           </button>
-        </div>
-      </div>
-      <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-        <div class="space-y-2">
-          <h1 class="text-2xl md:text-3xl lg:text-4xl font-semibold text-accent">Telegram Auto Sender</h1>
-          <p class="text-sm md:text-base text-muted max-w-2xl">Run one-off blasts or scheduled loops with your own Telegram API credentials. Now supports multiple chat targets per run and shared sessions across devices.</p>
-        </div>
-        <div class="bg-brand/10 text-accent rounded-2xl px-4 py-3 border border-brand/20 shadow-inner">
-          <p class="text-xs uppercase tracking-wide text-brand/80">Multi auto-send</p>
-          <p class="text-sm font-semibold">Send to several chats in each cycle.</p>
         </div>
       </div>
     </header>
 
-    <main class="grid gap-4 lg:gap-6 lg:grid-cols-[1.6fr_1fr] items-start">
-      <section class="bg-panel border border-border rounded-3xl shadow-xl shadow-black/10 p-6 md:p-8 space-y-7">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-xs uppercase tracking-[0.2em] text-muted">Credentials & content</p>
-            <p class="text-sm text-muted">Pre-filled with your API keys. Session is reusable across devices.</p>
+    <main class="grid gap-6 lg:gap-8 lg:grid-cols-[1.8fr_1fr] items-start">
+      
+      <!-- Control Panel -->
+      <section class="glass-panel rounded-2xl p-6 md:p-8 space-y-8 shadow-2xl shadow-black/20">
+        <div class="flex items-center justify-between border-b border-white/5 pb-4">
+          <div class="flex items-center gap-3">
+             <div class="p-2 rounded-lg bg-brand/10 text-brand">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+             </div>
+             <div>
+                <h3 class="font-semibold text-lg text-accent">Configuration</h3>
+                <p class="text-xs text-muted">Setup your broadcast parameters</p>
+             </div>
           </div>
-          <span class="text-xs text-muted">Secure local use</span>
+          <button id="saveButton" class="text-xs font-medium text-brand hover:text-brand-glow transition-colors flex items-center gap-1">
+             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+             Save Preset
+          </button>
         </div>
 
         <form id="sendForm" class="space-y-6">
-          <div class="grid md:grid-cols-2 gap-4">
-            <label class="space-y-2 text-sm">
-              <span class="text-muted">API ID</span>
-              <input type="number" name="api_id" value="23673698" required
-              class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30">
-            </label>
-            <label class="space-y-2 text-sm">
-              <span class="text-muted">API Hash</span>
-              <input type="text" name="api_hash" value="fb4d9e08cfa6563fec231658c18fe189" required
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30">
-            </label>
-          </div>
-
-          <div class="grid lg:grid-cols-2 gap-4">
-            <label class="space-y-2 text-sm lg:col-span-2">
-              <span class="text-muted">Session String</span>
-              <textarea name="session_string" rows="3" placeholder="Paste Telethon session string to reuse login (auto-fills after you log in once)"
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30"></textarea>
-              <span class="text-xs text-muted">We store an encrypted session so you can open this page on any device without logging in again.</span>
-            </label>
-
-            <label class="space-y-2 text-sm lg:col-span-2">
-              <span class="text-muted">Chat IDs or Usernames</span>
-              <textarea name="chat_id" rows="3" required placeholder="-100123... or @channel (one per line or comma separated)"
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30"></textarea>
-              <span class="text-xs text-muted">Multi auto-send: every loop will send to all chats in this list.</span>
-            </label>
-            <label class="space-y-2 text-sm">
-              <span class="text-muted">Interval (seconds)</span>
-              <input type="number" name="interval_seconds" min="1" step="1" required value="60"
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30">
-            </label>
-          </div>
-
-          <div class="grid md:grid-cols-2 gap-4">
-            <div class="space-y-2 text-sm">
-              <span class="text-muted">Send type</span>
-              <div class="relative">
-                <input type="hidden" id="contentType" name="content_type" value="text">
-                <button type="button" id="contentTypeButton"
-                  class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-left text-accent font-medium focus:outline-none focus:ring-2 focus:ring-brand/30 flex items-center justify-between">
-                  <span id="contentTypeLabel">Text only</span>
-                  <svg class="h-4 w-4 text-muted" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.086l3.71-3.856a.75.75 0 111.08 1.04l-4.25 4.417a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
-                  </svg>
-                </button>
-                <div id="contentTypeMenu"
-                  class="absolute z-10 mt-2 w-full rounded-xl border border-border bg-white shadow-lg shadow-black/10 hidden">
-                  <button type="button" data-value="text"
-                    class="w-full px-4 py-3 text-left text-accent hover:bg-surface/80 focus:outline-none focus:bg-surface/80 rounded-t-xl">
-                    Text only
-                  </button>
-                  <button type="button" data-value="image"
-                    class="w-full px-4 py-3 text-left text-accent hover:bg-surface/80 focus:outline-none focus:bg-surface/80 rounded-b-xl">
-                    Image with caption
-                  </button>
-                </div>
+          <div class="grid md:grid-cols-2 gap-5">
+            <div class="space-y-1.5">
+              <label class="text-xs font-medium text-muted uppercase tracking-wider ml-1">API ID</label>
+              <div class="relative group">
+                <input type="number" name="api_id" value="23673698" required
+                class="w-full rounded-xl bg-input border border-border px-4 py-3 text-sm text-accent placeholder:text-muted focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all font-mono">
+                <div class="absolute inset-0 rounded-xl bg-brand/5 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity"></div>
               </div>
             </div>
-            <label id="imageSourceField" class="space-y-2 text-sm hidden">
-              <span class="text-muted">Image input</span>
-              <select id="imageSource" name="image_source"
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent focus:outline-none focus:ring-2 focus:ring-brand/30">
-                <option value="url" selected>Use image URL</option>
-                <option value="upload">Upload image</option>
-              </select>
-            </label>
+            <div class="space-y-1.5">
+              <label class="text-xs font-medium text-muted uppercase tracking-wider ml-1">API Hash</label>
+              <div class="relative group">
+                 <input type="text" name="api_hash" value="fb4d9e08cfa6563fec231658c18fe189" required
+                class="w-full rounded-xl bg-input border border-border px-4 py-3 text-sm text-accent placeholder:text-muted focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all font-mono">
+                 <div class="absolute inset-0 rounded-xl bg-brand/5 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity"></div>
+              </div>
+            </div>
           </div>
 
-          <div class="grid md:grid-cols-2 gap-4">
-            <label id="imageUrlField" class="space-y-2 text-sm hidden">
-              <span class="text-muted">Image URL</span>
-              <input type="text" id="imageUrl" name="image_url" placeholder="https://example.com/image.jpg"
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30">
-            </label>
-            <label id="imageFileField" class="space-y-2 text-sm hidden">
-              <span class="text-muted">Upload image</span>
-              <input type="file" id="imageFile" accept="image/*"
-                class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30">
-            </label>
+          <div class="space-y-5">
+            <div class="space-y-1.5">
+              <label class="text-xs font-medium text-muted uppercase tracking-wider ml-1">Session String</label>
+              <textarea name="session_string" rows="2" placeholder="Encrypted session string..."
+                class="w-full rounded-xl bg-input border border-border px-4 py-3 text-xs text-muted font-mono placeholder:text-muted/50 focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all resize-none"></textarea>
+            </div>
+
+            <div class="grid lg:grid-cols-[2fr_1fr] gap-5">
+               <div class="space-y-1.5">
+                  <label class="text-xs font-medium text-muted uppercase tracking-wider ml-1">Targets (Chat IDs / Usernames)</label>
+                  <textarea name="chat_id" rows="4" required placeholder="@channel OR -100123456789"
+                    class="w-full rounded-xl bg-input border border-border px-4 py-3 text-sm text-accent font-mono placeholder:text-muted/50 focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all"></textarea>
+               </div>
+               <div class="space-y-1.5">
+                  <label class="text-xs font-medium text-muted uppercase tracking-wider ml-1">Loop Interval (s)</label>
+                  <div class="relative h-full">
+                     <input type="number" name="interval_seconds" min="1" step="1" required value="60"
+                     class="w-full h-[calc(100%-1.5rem)] rounded-xl bg-input border border-border px-4 py-3 text-xl font-bold text-center text-brand focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all">
+                  </div>
+               </div>
+            </div>
           </div>
 
-          <label class="space-y-2 text-sm block">
-            <span class="text-muted">Message (caption if sending an image)</span>
-            <textarea name="message" rows="3" required placeholder="Type the text to send"
-              class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30"></textarea>
-          </label>
-          <label class="space-y-2 text-sm block">
-            <span class="text-muted">Multiple messages (text only)</span>
-            <textarea name="messages_multi" rows="3" placeholder="Each line will send as a separate message in sequence"
-              class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand/30"></textarea>
-            <span class="text-xs text-muted">Works for text mode. We'll send each non-empty line after the main message above.</span>
-          </label>
+          <div class="p-5 rounded-xl border border-white/5 bg-white/[0.02] space-y-5">
+             <div class="flex items-center justify-between">
+                <span class="text-sm font-medium text-accent">Content Configuration</span>
+                <!-- Custom Select Trigger -->
+                <div class="relative w-48">
+                    <input type="hidden" id="contentType" name="content_type" value="text">
+                    <button type="button" id="contentTypeButton"
+                      class="w-full rounded-lg bg-input border border-border px-3 py-2 text-xs text-left text-accent font-medium focus:outline-none focus:border-brand/50 flex items-center justify-between hover:bg-white/5 transition-colors">
+                      <span id="contentTypeLabel">Text Message</span>
+                      <svg class="h-3 w-3 text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                    <!-- Dropdown -->
+                    <div id="contentTypeMenu" class="absolute right-0 z-20 mt-1 w-full rounded-lg border border-border bg-panel shadow-xl hidden overflow-hidden">
+                      <button type="button" data-value="text" class="w-full px-4 py-2.5 text-left text-xs text-accent hover:bg-brand/20 transition-colors border-b border-white/5">Text Message</button>
+                      <button type="button" data-value="image" class="w-full px-4 py-2.5 text-left text-xs text-accent hover:bg-brand/20 transition-colors">Image + Caption</button>
+                    </div>
+                 </div>
+             </div>
 
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-            <button type="submit"
-              class="inline-flex items-center justify-center gap-2 rounded-xl bg-accent text-white px-4 py-3 font-semibold shadow-lg shadow-brand/20 hover:bg-accent/90 transition focus:outline-none focus:ring-2 focus:ring-brand/40">
-              Start Auto Send
+             <!-- Dynamic Fields -->
+            <div id="imageSourceField" class="hidden grid md:grid-cols-2 gap-4 animate-[fadeIn_0.3s_ease]">
+               <div class="space-y-1.5">
+                   <label class="text-xs text-muted">Image Source</label>
+                   <select id="imageSource" name="image_source" class="w-full rounded-lg bg-input border border-border px-3 py-2 text-sm text-accent focus:outline-none focus:border-brand/50">
+                     <option value="url" selected>Image URL</option>
+                     <option value="upload">Upload File</option>
+                   </select>
+               </div>
+               <div id="imageUrlField" class="space-y-1.5">
+                  <label class="text-xs text-muted">URL</label>
+                  <input type="text" id="imageUrl" name="image_url" placeholder="https://..." class="w-full rounded-lg bg-input border border-border px-3 py-2 text-sm text-accent focus:outline-none focus:border-brand/50">
+               </div>
+               <div id="imageFileField" class="hidden space-y-1.5">
+                  <label class="text-xs text-muted">File</label>
+                  <input type="file" id="imageFile" accept="image/*" class="w-full rounded-lg bg-input border border-border px-3 py-1.5 text-sm text-muted file:mr-4 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-brand file:text-white hover:file:bg-brand-glow">
+               </div>
+            </div>
+
+            <div class="space-y-1.5">
+               <label class="text-xs text-muted ml-1">Message Body</label>
+               <textarea name="message" rows="3" required placeholder="Enter your message content..."
+               class="w-full rounded-xl bg-input border border-border px-4 py-3 text-sm text-accent placeholder:text-muted/50 focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all"></textarea>
+            </div>
+            
+            <div class="space-y-1.5">
+               <div class="flex items-center justify-between">
+                  <label class="text-xs text-muted ml-1">Multi-Line Broadcast (Optional)</label>
+                  <span class="text-[10px] text-muted/60 uppercase tracking-wider">Lines sent sequentially</span>
+               </div>
+               <textarea name="messages_multi" rows="3" placeholder="Line 1&#10;Line 2&#10;Line 3"
+               class="w-full rounded-xl bg-input border border-border px-4 py-3 text-sm text-accent placeholder:text-muted/50 focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all"></textarea>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4">
+             <button type="submit"
+              class="col-span-2 md:col-span-1 relative inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand to-cyan-600 text-white px-6 py-3.5 font-bold shadow-lg shadow-brand/20 hover:shadow-brand/40 hover:scale-[1.02] transition-all focus:outline-none focus:ring-2 focus:ring-brand/40 overflow-hidden group">
+               <span class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></span>
+               <span class="relative flex items-center gap-2">
+                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                 Start Loop
+               </span>
             </button>
             <button type="button" id="sendOnceButton"
-              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 font-semibold text-accent hover:border-brand/60 transition focus:outline-none focus:ring-2 focus:ring-brand/30">
+              class="inline-flex items-center justify-center gap-2 rounded-xl bg-panel border border-border text-accent px-4 py-3 font-semibold hover:bg-accent/5 transition-all focus:outline-none focus:ring-2 focus:ring-brand/30">
+               <svg class="w-5 h-5 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
               Send Once
             </button>
             <button type="button" id="stopButton"
-              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 font-semibold text-muted hover:text-accent hover:border-brand/60 transition focus:outline-none focus:ring-2 focus:ring-brand/20">
-              Stop
-            </button>
-            <button type="button" id="saveButton"
-              class="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 font-semibold text-accent hover:border-brand/60 transition focus:outline-none focus:ring-2 focus:ring-brand/30">
-              Save Inputs
+              class="inline-flex items-center justify-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 font-semibold hover:bg-red-500/20 hover:border-red-500/40 transition-all focus:outline-none focus:ring-2 focus:ring-red-500/30">
+               <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>
+              Stop All
             </button>
           </div>
         </form>
       </section>
 
-      <aside class="space-y-4 lg:space-y-5">
-        <div class="bg-panel border border-border rounded-3xl p-6 space-y-4 shadow-xl shadow-black/10">
-          <div class="flex items-center justify-between">
+      <!-- Sidebar -->
+      <aside class="space-y-6">
+        
+        <!-- Status Card -->
+        <div class="glass-panel rounded-2xl p-6 space-y-5 relative overflow-hidden">
+           <div class="absolute top-0 right-0 p-4 opacity-10">
+              <svg class="w-24 h-24 text-brand" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+           </div>
+          <div class="flex items-center justify-between relative z-10">
             <div>
-              <p class="text-sm text-muted">Status</p>
-              <p class="text-xs text-brand">Live across devices</p>
+              <p class="text-sm font-semibold text-accent">System Status</p>
+              <p class="text-xs text-brand">Real-time Telemetry</p>
             </div>
-            <button id="refreshStatus" type="button"
-              class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-accent hover:border-brand/60 transition focus:outline-none focus:ring-2 focus:ring-brand/20">
-              Refresh
+            <button id="refreshStatus" type="button" class="p-1.5 rounded-full text-muted hover:text-accent hover:bg-accent/10 transition">
+               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
             </button>
           </div>
-          <div class="flex items-center gap-2">
+
+          <div class="flex items-center gap-3 relative z-10">
             <span id="statusBadge"
-              class="inline-flex items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-sm font-semibold text-accent">
+              class="inline-flex items-center gap-2 rounded-full bg-input border border-border px-3 py-1 text-sm font-medium text-muted">
+              <span class="h-2 w-2 rounded-full bg-muted"></span>
               Idle
             </span>
-            <span id="statusMode" class="text-xs uppercase tracking-wide text-muted"></span>
+            <span id="statusMode" class="text-xs font-mono text-brand uppercase tracking-widest"></span>
           </div>
-          <dl class="grid grid-cols-2 gap-3 text-sm text-muted">
+
+          <div class="grid grid-cols-2 gap-4 text-xs relative z-10">
             <div class="space-y-1">
-              <dt>Started</dt>
-              <dd id="statusStarted" class="text-accent">--</dd>
-            </div>
-            <div class="space-y-1">
-              <dt>Last sent</dt>
-              <dd id="statusLastSent" class="text-accent">--</dd>
+              <span class="text-muted block">Started At</span>
+              <span id="statusStarted" class="text-accent font-mono">--</span>
             </div>
             <div class="space-y-1">
-              <dt>Sent count</dt>
-              <dd id="statusSentCount" class="text-accent">0</dd>
+              <span class="text-muted block">Last Sent</span>
+              <span id="statusLastSent" class="text-accent font-mono">--</span>
             </div>
             <div class="space-y-1">
-              <dt>Interval (s)</dt>
-              <dd id="statusInterval" class="text-accent">--</dd>
+              <span class="text-muted block">Sent Count</span>
+              <span id="statusSentCount" class="text-brand font-mono text-lg font-bold">0</span>
             </div>
-            <div class="space-y-1 col-span-2">
-              <dt>Targets</dt>
-              <dd class="space-y-2">
-                <div id="statusTargets" class="flex flex-wrap gap-2"></div>
-                <div id="statusTarget" class="text-accent break-all text-sm"></div>
-              </dd>
-            </div>
-            <div class="space-y-1 col-span-2">
-              <dt>Content type</dt>
-              <dd id="statusContentType" class="text-accent break-all">--</dd>
-            </div>
-          </dl>
-          <div class="space-y-2 pt-2">
-            <div class="flex items-center justify-between text-xs text-muted">
-              <span>Next send in</span>
-              <span id="countdownLabel" class="text-accent font-semibold">--</span>
-            </div>
-            <div class="w-full bg-border rounded-full h-2 overflow-hidden">
-              <div id="countdownBar" class="h-2 bg-brand transition-[width] duration-200 ease-linear" style="width:0%;"></div>
-            </div>
+            <div class="space-y-1">
+               <span class="text-muted block">Next Send In</span>
+               <span id="countdownLabel" class="text-accent font-mono text-lg font-bold">--</span>
+             </div>
           </div>
-          <p id="status" class="text-sm text-accent">Idle</p>
+          
+          <div class="space-y-2 pt-1 relative z-10">
+            <div class="w-full bg-input rounded-full h-1.5 overflow-hidden">
+              <div id="countdownBar" class="h-full bg-brand shadow-[0_0_10px_rgba(6,182,212,0.5)] transition-[width] duration-200 ease-linear" style="width:0%;"></div>
+            </div>
+             <p id="status" class="text-xs text-center text-muted">Ready to start</p>
+          </div>
         </div>
 
-        <div class="bg-panel border border-border rounded-3xl p-6 space-y-3 shadow-xl shadow-black/10">
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="font-semibold text-accent">Runs</p>
-              <p class="text-xs text-muted">Recent runs with stop control</p>
-            </div>
-            <button id="refreshRuns" type="button"
-              class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-accent hover:border-brand/60 transition focus:outline-none focus:ring-2 focus:ring-brand/20">
-              Refresh
-            </button>
-          </div>
-          <div id="runsList" class="space-y-2"></div>
-          <p id="runsStatus" class="text-xs text-muted"></p>
+        <!-- Recent Runs -->
+        <div class="glass-panel rounded-2xl p-6 space-y-4">
+           <div class="flex items-center justify-between mb-2">
+              <p class="text-sm font-semibold text-accent">Active Processes</p>
+               <button id="refreshRuns" type="button" class="p-1.5 rounded-full text-muted hover:text-accent hover:bg-accent/10 transition">
+                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+               </button>
+           </div>
+           <div id="runsList" class="space-y-3 min-h-[100px]">
+              <!-- Runs injected here -->
+           </div>
+           <p id="runsStatus" class="text-xs text-center text-muted"></p>
         </div>
 
-        <div class="bg-panel border border-border rounded-3xl p-6 space-y-3 text-sm text-muted shadow-xl shadow-black/10">
-          <p class="font-semibold text-accent">Usage</p>
-          <ul class="list-disc list-inside space-y-1">
-            <li>Use your personal API ID/Hash (pre-filled above).</li>
-            <li>For channels/groups use full <code class="text-accent">-100</code> chat id or a username.</li>
-            <li>Session string is stored encrypted; new devices pull it automatically.</li>
-            <li>"Start Auto Send" loops; "Send Once" fires immediately; "Stop" halts the loop.</li>
-            <li>Select "Image with caption" to upload a photo or use an image URL; the message field becomes the caption.</li>
-            <li>Add multiple chat IDs to broadcast in one loop.</li>
-          </ul>
-        </div>
       </aside>
     </main>
   </div>
 
   <!-- Auth Modal -->
-  <div id="authOverlay" class="fixed inset-0 bg-black/30 backdrop-blur-sm hidden transition-opacity duration-200"></div>
-  <div id="authModal" class="fixed inset-0 hidden items-center justify-center px-4">
-    <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl shadow-black/20 border border-border p-6 space-y-4 animate-[fadeIn_0.2s_ease]">
-      <div class="flex items-center justify-between">
+  <div id="authOverlay" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden transition-opacity duration-300 z-40"></div>
+  <div id="authModal" class="fixed inset-0 hidden items-center justify-center px-4 z-50">
+    <div class="w-full max-w-md rounded-2xl bg-panel border border-brand/20 shadow-2xl shadow-brand/10 p-8 space-y-6 animate-[fadeIn_0.2s_ease] relative overflow-hidden">
+      <!-- Decor -->
+      <div class="absolute top-0 right-0 w-32 h-32 bg-brand/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
+
+      <div class="flex items-center justify-between relative z-10">
         <div>
-          <p class="text-xs uppercase tracking-[0.2em] text-muted">Session helper</p>
-          <h2 class="text-lg font-semibold text-accent">Login to get session string</h2>
+          <p class="text-xs uppercase tracking-widest text-brand font-bold">Authentication</p>
+          <h2 class="text-xl font-bold text-accent mt-1">Telegram Login</h2>
         </div>
         <button type="button" id="closeAuthModal"
-          class="rounded-full p-2 text-muted hover:text-accent hover:bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20">
-          x
+          class="rounded-lg p-2 text-muted hover:text-accent hover:bg-accent/10 transition focus:outline-none">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
         </button>
       </div>
-      <p class="text-sm text-muted">Use your phone number once to authorize. We return a session string you can paste back into the form.</p>
-      <label class="space-y-2 text-sm block">
-        <span class="text-muted">Phone (include country code)</span>
-        <input type="tel" id="authPhone"
-          class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
-      </label>
-      <div class="grid sm:grid-cols-2 gap-3">
-        <label class="space-y-2 text-sm">
-          <span class="text-muted">Code</span>
-          <input type="text" id="authCode" maxlength="8"
-            class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
-        </label>
-        <label class="space-y-2 text-sm">
-          <span class="text-muted">2FA Password (if enabled)</span>
-          <input type="password" id="authPassword"
-            class="w-full rounded-xl bg-surface border border-border px-3 py-2.5 text-accent placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/30">
-        </label>
+
+      <div class="space-y-4 relative z-10">
+         <p class="text-sm text-muted">Enter your mobile number to receive a verification code via Telegram.</p>
+         
+         <div class="space-y-1.5">
+            <label class="text-xs font-medium text-muted ml-1">Phone Number</label>
+            <input type="tel" id="authPhone" placeholder="+1234567890"
+             class="w-full rounded-xl bg-input border border-border px-4 py-3 text-accent placeholder:text-muted/50 focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all font-mono">
+         </div>
+
+         <div class="grid grid-cols-2 gap-4">
+             <div class="space-y-1.5">
+               <label class="text-xs font-medium text-muted ml-1">Code</label>
+               <input type="text" id="authCode" maxlength="8" placeholder="12345"
+                class="w-full rounded-xl bg-input border border-border px-4 py-3 text-accent placeholder:text-muted/50 focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all font-mono">
+             </div>
+             <div class="space-y-1.5">
+               <label class="text-xs font-medium text-muted ml-1">2FA Password</label>
+               <input type="password" id="authPassword" placeholder="Optional"
+                class="w-full rounded-xl bg-input border border-border px-4 py-3 text-accent placeholder:text-muted/50 focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all">
+             </div>
+         </div>
       </div>
-      <div class="flex flex-wrap gap-3">
+
+      <div class="flex flex-col gap-3 pt-2 relative z-10">
         <button type="button" id="authSendBtn"
-          class="inline-flex items-center gap-2 rounded-xl bg-accent text-white px-4 py-2.5 font-semibold hover:bg-accent/90 transition focus:outline-none focus:ring-2 focus:ring-accent/30">
-          Send code
+          class="w-full rounded-xl bg-input border border-border text-accent px-4 py-3 font-semibold hover:bg-accent/5 transition-all focus:outline-none focus:ring-2 focus:ring-brand/30">
+          Request Code
         </button>
         <button type="button" id="authVerifyBtn"
-          class="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2.5 font-semibold text-accent hover:border-accent/60 transition focus:outline-none focus:ring-2 focus:ring-accent/20">
-          Verify & save session
+          class="w-full rounded-xl bg-brand text-white px-4 py-3 font-semibold shadow-lg shadow-brand/20 hover:bg-brand-glow transition-all focus:outline-none focus:ring-2 focus:ring-brand/30">
+          Verify & Connect
         </button>
       </div>
-      <p id="authStatus" class="text-sm text-accent"></p>
-      <div class="flex items-center gap-2 text-xs text-muted">
-        <span class="h-2 w-2 rounded-full bg-accent/50 animate-ping"></span>
-        <span>Keep this tab open while you enter the code.</span>
+      
+      <div class="text-center relative z-10">
+         <p id="authStatus" class="text-sm font-medium text-brand h-5"></p>
       </div>
     </div>
   </div>
-</div>
 
   <script>
     const form = document.getElementById("sendForm");
@@ -348,6 +440,9 @@
     const refreshStatus = document.getElementById("refreshStatus");
     const saveButton = document.getElementById("saveButton");
     const authActionButton = document.getElementById("authActionButton");
+    const themeToggle = document.getElementById("themeToggle");
+    const themeIconSun = document.getElementById("themeIconSun");
+    const themeIconMoon = document.getElementById("themeIconMoon");
     const contentTypeInput = document.getElementById("contentType");
     const contentTypeButton = document.getElementById("contentTypeButton");
     const contentTypeMenu = document.getElementById("contentTypeMenu");
@@ -365,10 +460,8 @@
     const statusStarted = document.getElementById("statusStarted");
     const statusLastSent = document.getElementById("statusLastSent");
     const statusSentCount = document.getElementById("statusSentCount");
-    const statusInterval = document.getElementById("statusInterval");
-    const statusTarget = document.getElementById("statusTarget");
-    const statusTargets = document.getElementById("statusTargets");
-    const statusContentType = document.getElementById("statusContentType");
+    const countdownLabel = document.getElementById("countdownLabel");
+    const countdownBar = document.getElementById("countdownBar");
     const authModal = document.getElementById("authModal");
     const authOverlay = document.getElementById("authOverlay");
     const closeAuthModal = document.getElementById("closeAuthModal");
@@ -392,9 +485,7 @@
       };
       try {
         localStorage.setItem(LOCAL_AUTH_KEY, JSON.stringify(localAuth));
-      } catch (err) {
-        /* ignore storage errors */
-      }
+      } catch (err) { } // ignore storage errors
       form.elements["session_string"].value = localAuth.session_string;
     }
 
@@ -439,47 +530,42 @@
       localAuth = { session_string: "", user: null };
       try {
         localStorage.removeItem(LOCAL_AUTH_KEY);
-      } catch (err) {
-        /* ignore storage errors */
-      }
+      } catch (err) { } // ignore storage errors
       form.elements["session_string"].value = "";
       updateUserBadge();
     }
 
     function updateUserBadge() {
       const user = localAuth.user;
-      const indicator = '<span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>';
       if (user && user.name) {
-        userBadge.innerHTML = indicator + '<span class="text-accent font-semibold">Signed in as ' + user.name + "</span>";
-        userBadge.className =
-          "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand/10 text-accent border border-brand/30 shadow-sm";
-        authActionButton.textContent = "Sign out";
+        userBadge.innerHTML = '<span class="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></span><span class="text-emerald-500 font-medium">' + user.name + '</span>';
+        userBadge.className = "inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-xs cursor-default";
+        authActionButton.innerHTML = '<span class="relative flex items-center gap-2">Sign Out</span>';
       } else {
-        userBadge.innerHTML = indicator + '<span class="text-accent">Ready</span>';
-        userBadge.className =
-          "inline-flex items-center gap-2 px-4 py-2 rounded-full bg-panel border border-border shadow-md";
-        authActionButton.textContent = "Login / Get session";
+        userBadge.innerHTML = '<span class="h-2 w-2 rounded-full bg-muted"></span><span>Not Connected</span>';
+        userBadge.className = "inline-flex items-center gap-2 px-3 py-1 rounded-full bg-border/50 border border-white/5 text-xs text-muted backdrop-blur-sm cursor-default";
+        authActionButton.innerHTML = '<span class="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-brand/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out"></span><span class="relative flex items-center gap-2"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>Connect Account</span>';
       }
     }
 
     function setStatus(text, tone = "muted") {
       const toneClasses = {
-        success: "text-green-600",
-        error: "text-red-600",
-        muted: "text-accent"
+        success: "text-emerald-400",
+        error: "text-red-400",
+        muted: "text-muted"
       };
       statusEl.textContent = text;
-      statusEl.className = "text-base font-medium " + (toneClasses[tone] || toneClasses.muted);
+      statusEl.className = "text-xs text-center " + (toneClasses[tone] || toneClasses.muted);
     }
 
     function setAuthStatus(text, tone = "muted") {
       const toneClasses = {
-        success: "text-green-600",
-        error: "text-red-600",
-        muted: "text-accent"
+        success: "text-emerald-400",
+        error: "text-red-400",
+        muted: "text-brand"
       };
       authStatus.textContent = text;
-      authStatus.className = "text-sm font-medium " + (toneClasses[tone] || toneClasses.muted);
+      authStatus.className = "text-sm font-medium h-5 " + (toneClasses[tone] || toneClasses.muted);
     }
 
     async function ensureSessionValue() {
@@ -565,9 +651,9 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        setStatus("Inputs saved", "success");
+        setStatus("Settings saved successfully", "success");
       } catch (err) {
-        setStatus("Could not save inputs", "error");
+        setStatus("Could not save settings", "error");
       }
     }
 
@@ -583,14 +669,12 @@
           }
         });
         syncContentFields();
-      } catch (err) {
-        // ignore load errors
-      }
+      } catch (err) { /* ignore load errors */ }
     }
 
     function updateContentTypeLabel() {
       contentTypeLabel.textContent =
-        contentTypeInput.value === "image" ? "Image with caption" : "Text only";
+        contentTypeInput.value === "image" ? "Image + Caption" : "Text Message";
     }
 
     function syncContentFields() {
@@ -604,26 +688,26 @@
       imageFileInput.required = isImage && usingUpload;
       messageField.required = !isImage;
       messageField.placeholder = isImage
-        ? "Optional caption shown with the image"
-        : "Type the text to send";
+        ? "Caption (Optional)"
+        : "Enter your message content...";
     }
 
     function validateContent(data) {
       if (data.content_type === "image") {
         const usingUpload = (data.image_source || "url") === "upload";
         if (usingUpload && imageFileInput.files.length === 0) {
-          setStatus("Choose an image file to upload.", "error");
+          setStatus("Choose an image file.", "error");
           return false;
         }
         if (!usingUpload && !data.image_url) {
-          setStatus("Add an image URL when sending an image.", "error");
+          setStatus("Add an image URL.", "error");
           return false;
         }
       }
       if (data.content_type === "text") {
         const multi = (data.messages_multi || "").trim();
         if (!data.message && !multi) {
-          setStatus("Add a message or multiple messages (one per line).", "error");
+          setStatus("Add a message body.", "error");
           return false;
         }
       }
@@ -649,26 +733,40 @@
       if (!lastStatus || !lastStatus.active || !lastStatus.interval_seconds) {
         countdownLabel.textContent = "--";
         countdownBar.style.width = "0%";
-        return;
+      } else {
+          const now = Date.now() / 1000;
+          const next = lastStatus.next_send_at;
+          if (!next) {
+            countdownLabel.textContent = "--";
+            countdownBar.style.width = "0%";
+          } else {
+            const remaining = Math.max(0, next - now);
+            const pct = Math.min(100, Math.max(0, ((lastStatus.interval_seconds - remaining) / lastStatus.interval_seconds) * 100));
+            countdownLabel.textContent = remaining.toFixed(1) + "s";
+            countdownBar.style.width = pct + "%";
+          }
       }
-      const now = Date.now() / 1000;
-      const next = lastStatus.next_send_at;
-      if (!next) {
-        countdownLabel.textContent = "--";
-        countdownBar.style.width = "0%";
-        return;
-      }
-      const remaining = Math.max(0, next - now);
-      const pct = Math.min(100, Math.max(0, ((lastStatus.interval_seconds - remaining) / lastStatus.interval_seconds) * 100));
-      countdownLabel.textContent = remaining.toFixed(1) + "s";
-      countdownBar.style.width = pct + "%";
+      updateRunsCountdown();
+    }
+
+    function updateRunsCountdown() {
+        const now = Date.now() / 1000;
+        document.querySelectorAll(".run-progress").forEach(function(el) {
+            const next = parseFloat(el.dataset.next);
+            const interval = parseFloat(el.dataset.interval);
+            if (!next || !interval) return;
+            const remaining = Math.max(0, next - now);
+            const pct = Math.min(100, Math.max(0, ((interval - remaining) / interval) * 100));
+            const bar = el.firstElementChild;
+            if (bar) bar.style.width = pct + "%";
+        });
     }
 
     function openAuthModalDialog() {
       authOverlay.classList.remove("hidden");
       authModal.classList.remove("hidden");
       authPhone.value = form.elements["phone"] ? form.elements["phone"].value : authPhone.value;
-      setAuthStatus("Enter your phone number to get a code.");
+      setAuthStatus("Enter your phone number.");
     }
 
     function closeAuthModalDialog() {
@@ -701,80 +799,118 @@
           throw err;
         });
     }
-
     
     function fmtTs(ts) {
       if (!ts) return "--";
       const d = new Date(ts * 1000);
-      return d.toLocaleString();
-    }
-
-    function renderTargets(targets, fallbackText) {
-      if (!statusTargets) return;
-      statusTargets.innerHTML = "";
-      const items = Array.isArray(targets) ? targets.filter(Boolean) : [];
-      if (items.length === 0) {
-        statusTarget.textContent = fallbackText || "--";
-        return;
-      }
-      items.forEach(function (t) {
-        const chip = document.createElement("span");
-        chip.textContent = t;
-        chip.className =
-          "inline-flex items-center gap-1 px-3 py-1 rounded-full bg-brand/10 text-accent border border-brand/20 text-xs font-medium";
-        statusTargets.appendChild(chip);
-      });
-      statusTarget.textContent = fallbackText || items.join(", ");
+      return d.toLocaleTimeString(); // More compact
     }
 
     function renderRuns(runs) {
         runsList.innerHTML = "";
         if (!runs || runs.length === 0) {
-          runsList.innerHTML = '<p class="text-xs text-muted">No recent runs.</p>';
+          runsList.innerHTML = '<p class="text-xs text-muted text-center py-4">No active runs.</p>';
           return;
         }
         runs.forEach(function (run) {
           const card = document.createElement("div");
           const active = Boolean(run.active);
-          card.className = "flex items-start justify-between gap-2 rounded-xl border border-border px-3 py-2";
+          card.className = "flex items-center justify-between gap-3 rounded-lg bg-input border border-border px-3 py-2.5 transition-all hover:border-brand/30";
+          
           const left = document.createElement("div");
-          left.className = "space-y-1";
-          const title = document.createElement("p");
-          title.className = "text-sm font-semibold text-accent";
-          title.textContent = (run.mode || "run").toUpperCase() + " - " + (run.id || "").slice(0, 8);
+          left.className = "min-w-0 flex-1";
+          
+          const titleRow = document.createElement("div");
+          titleRow.className = "flex items-center gap-2 mb-0.5";
+          
+          const statusDot = document.createElement("span");
+          statusDot.className = "w-2 h-2 rounded-full " + (active ? "bg-emerald-500 shadow-[0_0_5px_#10b981] animate-pulse" : "bg-red-500");
+          
+          const title = document.createElement("div");
+          title.className = "text-xs font-semibold text-accent truncate flex items-center gap-2";
+          title.innerHTML = `RUN ${(run.id || "").slice(0, 6).toUpperCase()} ${active ? '<span class="text-[10px] font-normal text-emerald-500 border border-emerald-500/30 px-1.5 rounded bg-emerald-500/10">In Progress</span>' : ''}`;
+          
+          titleRow.appendChild(statusDot);
+          titleRow.appendChild(title);
+          
           const meta = document.createElement("p");
-          meta.className = "text-xs text-muted";
-          const targetCount = Array.isArray(run.targets) ? run.targets.length : 0;
-          const msgCount = run.messages_count || 0;
-          meta.textContent =
-            (run.active ? "Active" : "Stopped") +
-            " - targets: " + targetCount +
-            " - sent: " + (run.sent_count || 0) +
-            (msgCount ? " - msgs: " + msgCount : "");
-          left.appendChild(title);
+          meta.className = "text-[10px] text-muted truncate pl-4";
+           const targetCount = Array.isArray(run.targets) ? run.targets.length : 0;
+          meta.textContent = `${targetCount} Targets • ${run.sent_count || 0} Sent`;
+
+          // Progress Bar Container
+          const progressContainer = document.createElement("div");
+          progressContainer.className = "mt-1.5 ml-4 h-1 w-24 bg-surface rounded-full overflow-hidden hidden";
+          if (active && run.mode === "loop" && run.next_send_at) {
+              progressContainer.classList.remove("hidden");
+              progressContainer.dataset.next = run.next_send_at;
+              progressContainer.dataset.interval = run.interval_seconds;
+              progressContainer.classList.add("run-progress"); 
+              
+              const bar = document.createElement("div");
+              bar.className = "h-full bg-brand/50 transition-[width] duration-200 ease-linear";
+              bar.style.width = "0%";
+              progressContainer.appendChild(bar);
+          }
+
+          left.appendChild(titleRow);
           left.appendChild(meta);
+          left.appendChild(progressContainer);
+
           const right = document.createElement("div");
-          right.className = "flex items-center gap-2";
-          const badge = document.createElement("span");
-          badge.className =
-            "text-xs font-semibold px-2 py-1 rounded-full " +
-            (active ? "bg-emerald-100 text-emerald-700" : "bg-surface text-muted border border-border");
-          badge.textContent = active ? "Running" : "Stopped";
-          right.appendChild(badge);
+          right.className = "flex items-center gap-1"; 
+
           if (active) {
-            const btn = document.createElement("button");
-            btn.textContent = "Stop";
-            btn.className =
-              "text-xs font-semibold px-3 py-1 rounded-full border border-red-200 text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200";
-            btn.addEventListener("click", function () {
+            if (run.mode === "loop") {
+                const pauseBtn = document.createElement("button");
+                pauseBtn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+                pauseBtn.className = "p-1.5 rounded-full text-muted hover:bg-yellow-500/10 hover:text-yellow-400 transition-colors";
+                pauseBtn.title = "Pause Run";
+                pauseBtn.addEventListener("click", function () {
+                  pauseRun(run.id);
+                });
+                right.appendChild(pauseBtn);
+            } else if (run.mode === "paused") {
+                const resumeBtn = document.createElement("button");
+                resumeBtn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+                resumeBtn.className = "p-1.5 rounded-full text-muted hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors";
+                resumeBtn.title = "Resume Run";
+                resumeBtn.addEventListener("click", function () {
+                  resumeRun(run.id);
+                });
+                right.appendChild(resumeBtn);
+            }
+
+            const stopBtn = document.createElement("button");
+            stopBtn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>';
+            stopBtn.className = "p-1.5 rounded-full text-muted hover:bg-red-500/10 hover:text-red-400 transition-colors";
+            stopBtn.title = "Stop Run";
+            stopBtn.addEventListener("click", function () {
               stopRun(run.id);
             });
-            right.appendChild(btn);
+            right.appendChild(stopBtn);
           }
+          
           card.appendChild(left);
           card.appendChild(right);
           runsList.appendChild(card);
         });
+    }
+
+    function pauseRun(runId) {
+      if (!runId) return;
+      postJSON("/runs/" + runId + "/pause", {}, "Paused run").then(function () {
+        fetchStatus();
+        fetchRuns();
+      }).catch(function () { /* handled by postJSON */ });
+    }
+
+    function resumeRun(runId) {
+      if (!runId) return;
+      postJSON("/runs/" + runId + "/resume", {}, "Resumed run").then(function () {
+        fetchStatus();
+        fetchRuns();
+      }).catch(function () { /* handled by postJSON */ });
     }
 
     function stopRun(runId) {
@@ -787,23 +923,17 @@
 
     function renderStatus(data) {
       const active = Boolean(data.active);
-      statusBadge.textContent = active ? "Active" : "Idle";
-      statusBadge.className =
-        "inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold " +
-        (active
-          ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-          : "bg-surface text-accent border border-border");
+      statusBadge.innerHTML = active 
+        ? '<span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]"></span><span>In Progress</span>' 
+        : '<span class="h-2 w-2 rounded-full bg-muted"></span><span>Idle</span>';
+      statusBadge.className = "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium transition-colors " +
+        (active ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500" : "bg-input border-border text-muted");
+
       statusMode.textContent = data.mode ? data.mode : "";
       statusStarted.textContent = fmtTs(data.started_at);
       statusLastSent.textContent = fmtTs(data.last_sent_at);
       statusSentCount.textContent = data.sent_count ?? 0;
-      statusInterval.textContent = data.interval_seconds ?? "--";
-      const targets = Array.isArray(data.targets) ? data.targets : (data.chat_id ? [data.chat_id] : []);
-      renderTargets(targets, data.chat_id ?? "--");
-      statusContentType.textContent = data.content_type || "--";
-      if (Array.isArray(data.messages) && data.messages.length) {
-        statusEl.textContent = "Last run is sending multiple messages (" + data.messages.length + ")";
-      }
+      
       lastStatus = data;
       if (data.user) {
         localAuth.user = data.user;
@@ -835,20 +965,20 @@
         base.session_string = await ensureSessionValue();
       }
       if (!base.session_string) {
-        setStatus("Session string is required. Login first to start sending.", "error");
+        setStatus("Login required.", "error");
         return;
       }
       if (!validateContent(base)) return;
       const data = await buildPayload(base);
       if (!data) return;
       persistLocalAuth(base.session_string);
-      setStatus("Starting loop...");
-      postJSON("/start", data, "Started").then(fetchStatus).catch(function () {});
+      setStatus("Initiating loop...");
+      postJSON("/start", data, "Loop Started").then(fetchStatus).catch(function () {});
     });
 
     stopButton.addEventListener("click", function () {
-      setStatus("Stopping...");
-      postJSON("/stop", {}, "Stopped").then(fetchStatus).catch(function () {});
+      setStatus("Stopping all processes...");
+      postJSON("/stop", {}, "All Stopped").then(fetchStatus).catch(function () {});
     });
 
     sendOnceButton.addEventListener("click", async function () {
@@ -860,15 +990,15 @@
         base.session_string = await ensureSessionValue();
       }
       if (!base.session_string) {
-        setStatus("Session string is required. Login first to send a message.", "error");
+        setStatus("Login required.", "error");
         return;
       }
       if (!validateContent(base)) return;
       const data = await buildPayload(base);
       if (!data) return;
       persistLocalAuth(base.session_string);
-      setStatus("Sending once...");
-      postJSON("/send-once", data, "Message sent").then(fetchStatus).catch(function () {});
+      setStatus("Sending...");
+      postJSON("/send-once", data, "Message Sent").then(fetchStatus).catch(function () {});
     });
 
     saveButton.addEventListener("click", function () {
@@ -881,7 +1011,7 @@
     refreshStatus.addEventListener("click", fetchStatus);
     refreshRuns.addEventListener("click", fetchRuns);
     authActionButton.addEventListener("click", function () {
-      if (authActionButton.textContent.includes("Sign out")) {
+      if (authActionButton.textContent.includes("Sign Out")) {
         postJSON("/auth/logout", {}, "Signed out").then(function () {
           clearLocalAuth();
           fetchStatus();
@@ -918,7 +1048,7 @@
     authSendBtn.addEventListener("click", function () {
       const phone = authPhone.value.trim();
       if (!phone) {
-        setAuthStatus("Phone is required.", "error");
+        setAuthStatus("Phone required.", "error");
         return;
       }
       const payload = {
@@ -929,9 +1059,9 @@
       setAuthStatus("Sending code...", "muted");
       authSendBtn.disabled = true;
       postJSON("/auth/send-code", payload, "Code sent").then(function (res) {
-        setAuthStatus(res.detail || "Code sent. Check Telegram.", "success");
+        setAuthStatus(res.detail || "Code sent.", "success");
       }).catch(function (err) {
-        setAuthStatus(err.message || "Failed to send code.", "error");
+        setAuthStatus(err.message || "Failed.", "error");
       }).finally(function () {
         authSendBtn.disabled = false;
         setTimeout(function () { setAuthStatus(""); }, 4000);
@@ -941,7 +1071,7 @@
       const phone = authPhone.value.trim();
       const code = authCode.value.trim();
       if (!phone || !code) {
-        setAuthStatus("Phone and code are required.", "error");
+        setAuthStatus("Phone and code required.", "error");
         return;
       }
       const payload = {
@@ -962,22 +1092,52 @@
           persistLocalAuth("", res.user || null);
         }
         updateUserBadge();
-        setAuthStatus(res.detail || "Authorized. Session saved above.", "success");
+        closeAuthModalDialog(); 
+        setStatus("Authentication successful", "success");
       }).catch(function (err) {
         setAuthStatus(err.message || "Verification failed.", "error");
       }).finally(function () {
         authVerifyBtn.disabled = false;
       });
     });
+    function updateThemeIcon() {
+      const isDark = document.documentElement.classList.contains("dark");
+      if (isDark) {
+        themeIconSun.classList.remove("hidden");
+        themeIconMoon.classList.add("hidden");
+      } else {
+        themeIconSun.classList.add("hidden");
+        themeIconMoon.classList.remove("hidden");
+      }
+    }
+
+    function initTheme() {
+      const saved = localStorage.getItem("theme");
+      if (saved === "light") {
+        document.documentElement.classList.remove("dark");
+      } else {
+        document.documentElement.classList.add("dark");
+      }
+      updateThemeIcon();
+    }
+    
+    themeToggle.addEventListener("click", function() {
+      document.documentElement.classList.toggle("dark");
+      const isDark = document.documentElement.classList.contains("dark");
+      localStorage.setItem("theme", isDark ? "dark" : "light");
+      updateThemeIcon();
+    });
+
     imageSourceSelect.addEventListener("change", syncContentFields);
+    initTheme();
     loadLocalAuth();
     loadServerSession();
     loadSettings();
     syncContentFields();
     fetchStatus();
     fetchRuns();
-    setInterval(fetchStatus, 5000);
-    setInterval(fetchRuns, 6000);
+    setInterval(fetchStatus, 2000);
+    setInterval(fetchRuns, 4000);
     setInterval(updateCountdown, 500);
 
   </script>
